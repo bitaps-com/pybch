@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # coding: utf-8
+# todo install libsec256 part
 from distutils.core import setup
 
 setup(name='bitcoinlib',
