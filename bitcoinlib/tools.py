@@ -177,6 +177,13 @@ def v_ripemd160_to_address(h):
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
 
+def is_address_valid(addr):
+    if addr[0] not in ('1','3'): return False
+    h = decode_Base58(addr)
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
 
 def double_sha256(byte_string):
     return hashlib.sha256(hashlib.sha256(byte_string).digest()).digest()

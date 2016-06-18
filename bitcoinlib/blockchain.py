@@ -207,7 +207,6 @@ class Transaction():
             t += out.value
         return t
 
-
     def serialize(self, sighash_type = 0, input_index = -1, subscript = b''):
         if self.tx_in_count-1 < input_index  : raise Exception('Input not exist')
         if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)): return b'\x01'+b'\x00'*31
@@ -235,6 +234,8 @@ class Transaction():
         return version+ninputs+b''.join(inputs)+nouts+b''.join(outputs)+self.lock_time.to_bytes(4,'little')
 
 
+
+
     def eval_script(self, input_index, script, _stack = None):
         script = list(script)
         if _stack is None: stack = []
@@ -245,12 +246,12 @@ class Transaction():
         executed = 0
 
         while True:
-            print("%s stack: %s" % (executed,str(list(map(binascii.hexlify,stack)))))
+            # print("%s stack: %s" % (executed,str(list(map(binascii.hexlify,stack)))))
             if executed > MAX_OPS_PER_SCRIPT: return  False,'>MAX_OPS_PER_SCRIPT opcodes executed'
             if len(stack)+len(altstack)> 1000: return  False,'>1,000 stack size'
             if len(script) == 0 : break
             opcode = script.pop(0)
-            print("opcode :%s"%  str(opcode) )
+            # print("opcode :%s"%  str(opcode) )
             if opcode.data == b'':  executed += 1
             escript.append(opcode)
             # process execution flow opcodes
@@ -454,21 +455,21 @@ class Transaction():
                         if o.raw != OPCODE['OP_CODESEPARATOR'] and o.data!=vchSig: subscript+=o.raw + o.data
                     hashtype = vchSig[-1]
                     # print('hello')
-                    print("signatere type %s " % hashtype)
+                    # print("signatere type %s " % hashtype)
                     if hashtype == 0 : hashtype = 1
-                    print("lock time:")
-                    print(self.lock_time)
+                    # print("lock time:")
+                    # print(self.lock_time)
                     # print(self.serialize(hashtype, input_index, subscript))
                     sigHash = double_sha256(self.serialize(hashtype,input_index, subscript)+int(hashtype).to_bytes(4,'little'))
                     stack.append(i2b(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)))
-                    print(sigHash)
-                    print(rh2s(sigHash))
-                    print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
-                    print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
-                    print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
-                    print(i2b(0))
+                    # print(sigHash)
+                    # print(rh2s(sigHash))
+                    # print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
+                    # print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
+                    # print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
+                    # print(i2b(0))
                     #print(b2i(0))
-                    print(stack)
+                    # print(stack)
                     if opcode.raw == OPCODE["OP_CHECKSIGVERIFY"]:
                         # print('opchverf')
                         # print(stack)
@@ -550,6 +551,7 @@ class Transaction():
                 return False,'unknown opcode'
         if level > 0 : return False,'endif missing'
         return True,stack
+
 
 
     # def eval_script(self, input_index, script, stack = None, SCRIPT_VERIFY_FLAG = STANDARD_SCRIPT_VERIFY_FLAGS, debug = False):
