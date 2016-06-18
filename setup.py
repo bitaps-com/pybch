@@ -4,7 +4,7 @@
 from distutils.core import setup
 
 setup(name='bitcoinlib',
-      version='1.0',
+      version='1.0.1',
       description='Bitcoin library',
       author='Alexsei Karpov',
       author_email='karpov.alexsei@bitaps.com',
