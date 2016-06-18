@@ -94,6 +94,8 @@ class TxScript():
         elif len(self.script)>= 4:
             if self.script[-1].raw == b'\xae' and self.script[-2].raw <= b'`' and self.script[-2].raw >= b'Q' : #  OP_CHECKMULTISIG   "OP_1"  "OP_16"
                 if self.script[0].raw <= b'`' and self.script[0].raw >= b'Q':
+                    self.bare_multisig_accepted = ord(self.script[0].raw) - 80
+                    self.bare_multisig_from = ord(self.script[-2].raw) - 80
                     self.type = "MULTISUG"
                     for o in self.script[1:-2]:
                         # if o.str != '<65>' and o.str != '<33>':
