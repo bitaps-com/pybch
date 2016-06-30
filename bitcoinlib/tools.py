@@ -503,6 +503,10 @@ def key_to_btc_code():
     h = b'\x10\x01\xf8' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
+def key_to_inv_code():
+    h = b'@\x01\xc9' + h
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
 
 def key_to_pmt_code():
     h = b'"<$' + h
@@ -531,6 +535,14 @@ def is_address_valid(addr):
 
 def is_btc_code_valid(wif):
     if wif[:3] != 'BTC': return False
+    h = decode_Base58(wif)
+    if len(h) != 39:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+def is_inv_code_valid(wif):
+    if wif[:3] != 'inv': return False
     h = decode_Base58(wif)
     if len(h) != 39:  return False
     checksum = h[-4:]
