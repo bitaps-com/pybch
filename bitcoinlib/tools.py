@@ -499,16 +499,16 @@ def generate_private_key():
                 break
     return h
 
-def key_to_btc_code():
+def key_to_btc_code(h):
     h = b'\x10\x01\xf8' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
-def key_to_inv_code():
+def key_to_inv_code(h):
     h = b'@\x01\xc9' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
 
-def key_to_pmt_code():
+def key_to_pmt_code(h):
     h = b'"<$' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
