@@ -5,12 +5,14 @@ import ipaddress
 import struct
 import time
 import asyncio
+import random
 
 ECDSA = cdll.LoadLibrary("libsecp256k1.so")
 SIGHASH_ALL           = 0x00000001
 SIGHASH_NONE          = 0x00000002
 SIGHASH_SINGLE        = 0x00000003
 SIGHASH_ANYONECANPAY  = 0x00000080
+MAX_INT_PRIVATE_KEY   = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
 
 SCRIPT_TYPES = { "P2PKH":        0,
                  "P2SH" :        1,
@@ -481,3 +483,77 @@ def pipe_sent_msg(writer, msg_type, msg):
 def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
+
+
+def generate_private_key():
+    q = time.time()
+    rnd = random.SystemRandom()
+    a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
+    i = int((time.time()%0.01)*100000)
+    h = a.to_bytes(32,byteorder="big")
+    while True:
+        h = hashlib.sha256(h).digest()
+        if i>1: i -= 1
+        else:
+            if int.from_bytes(h,byteorder="big")<MAX_INT_PRIVATE_KEY:
+                break
+    return h
+
+def key_to_btc_code():
+    h = b'\x10\x01\xf8' + h
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
+
+def key_to_pmt_code():
+    h = b'"<$' + h
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
+def private_key_from_int(k):
+    return int.to_bytes(k,byteorder="big",length=32)
+
+
+def private_key_wif(h):
+    h = b'\x80' + h
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
+
+def wif_to_private_key(h):
+    h=decode_Base58(h)
+    return h[1:-4]
+
+def is_address_valid(addr):
+    if addr[0] not in ('1','3'): return False
+    h = decode_Base58(addr)
+    if len(h)!=25:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+def is_btc_code_valid(wif):
+    if wif[:3] != 'BTC': return False
+    h = decode_Base58(wif)
+    if len(h) != 39:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+def is_pmt_code_valid(wif):
+    if wif[:3] != 'PMT': return False
+    h = decode_Base58(wif)
+    if len(h) != 39:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+def is_wif_valid(wif):
+    if wif[0] != '5': return False
+    h = decode_Base58(wif)
+    if len(h) != 37:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+
+
+
+
