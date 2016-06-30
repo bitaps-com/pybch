@@ -22,7 +22,7 @@ SCRIPT_TYPES = { "P2PKH":        0,
                  "NON_STANDART": 5
                 }
 
-ECDSA_VERIFY_CONTEXT = ECDSA.secp256k1_context_create(1)
+ECDSA_VERIFY_CONTEXT = ECDSA.secp256k1_context_create(3)
 
 bitcoin_magic = 0xD9B4BEF9
 bitcoin_version = 70002
@@ -564,6 +564,18 @@ def is_wif_valid(wif):
     checksum = h[-4:]
     if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
     return True
+
+def pubkey_to_ripemd160(pubkey):
+    return ripemd160(hashlib.sha256(pubkey).digest())
+
+def pubkey_from_private_key(private_key,compressed = False):
+    pub = create_string_buffer(64)
+    ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT,pub,private_key)
+    pp = create_string_buffer(65)
+    s = c_int(65)
+    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
+    return pp.raw[:s]
+
 
 
 
