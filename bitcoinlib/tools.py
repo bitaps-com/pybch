@@ -179,6 +179,10 @@ def v_ripemd160_to_address(h):
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
 
+def pubkey_to_address (pubkey):
+    return v_ripemd160_to_address(b'\x00'+pubkey_to_ripemd160(pubkey))
+
+
 def is_address_valid(addr):
     if addr[0] not in ('1','3'): return False
     h = decode_Base58(addr)
@@ -574,8 +578,7 @@ def pubkey_from_private_key(private_key,compressed = False):
     pp = create_string_buffer(65)
     s = c_int(65)
     ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
-    return pp.raw[:s]
-
+    return pp.raw[:s.value]
 
 
 
