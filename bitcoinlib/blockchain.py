@@ -94,7 +94,7 @@ class TxScript():
         elif len(self.script)>= 4:
             if self.script[-1].raw == b'\xae' and self.script[-2].raw <= b'`' and self.script[-2].raw >= b'Q' : #  OP_CHECKMULTISIG   "OP_1"  "OP_16"
                 if self.script[0].raw <= b'`' and self.script[0].raw >= b'Q':
-                    self.bare_multisig_accepted = ord(self.script[0].raw) - 80
+                    self.vbare_multisig_accepted = ord(self.script[0].raw) - 80
                     self.bare_multisig_from = ord(self.script[-2].raw) - 80
                     self.type = "MULTISUG"
                     for o in self.script[1:-2]:
@@ -107,6 +107,7 @@ class TxScript():
                         self.op_sig_count += 1
                         ripemd = ripemd160(hashlib.sha256(o.data).digest())
                         self.address.append(b'\x00' + ripemd)
+                        # p2sh address inside multisig?
 
 
 
@@ -208,7 +209,6 @@ class Transaction():
         for out in self.tx_out:
             t += out.value
         return t
-
     def serialize(self, sighash_type = 0, input_index = -1, subscript = b''):
         if self.tx_in_count-1 < input_index  : raise Exception('Input not exist')
         if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)): return b'\x01'+b'\x00'*31
@@ -309,7 +309,7 @@ class Transaction():
                 except Exception as err: return False,'else block error %s' % err
 
             if opcode.raw == OPCODE["OP_VERIFY"]:
-                if b2i(stack.pop()) == False: return  False,'OP_VERIFY top stack is False'
+                if b2i(stack.pop()) == False: return  False,'vp stack is False'
             if  opcode.raw == OPCODE["OP_RETURN"]: return  False,'OP_RETURN top stack is False'
 
             if opcode.raw in DISABLED_OPCODE or opcode.raw == OPCODE['OP_VER']: return  False,'%s disabled opcode 1' % opcode.str

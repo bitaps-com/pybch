@@ -580,6 +580,20 @@ def pubkey_from_private_key(private_key,compressed = False):
     ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
     return pp.raw[:s.value]
 
+def sign_message(msg, private_key):
+    sign = create_string_buffer(64)
+    p= ECDSA.secp256k1_ecdsa_sign(ECDSA_VERIFY_CONTEXT, msg, sign, private_key ,None,None )
+    return sign.raw
+
+def sign_message_der(msg, private_key):
+    sign = sign_message(msg,private_key)
+    signder = create_string_buffer(255)
+    s = c_int(255)
+    ECDSA.secp256k1_ecdsa_signature_serialize_der(ECDSA_VERIFY_CONTEXT,signder,pointer(s),sign)
+    return signder.raw[:s.value]
+
+   
+
 
 
 
