@@ -96,7 +96,7 @@ class TxScript():
                 if self.script[0].raw <= b'`' and self.script[0].raw >= b'Q':
                     self.vbare_multisig_accepted = ord(self.script[0].raw) - 80
                     self.bare_multisig_from = ord(self.script[-2].raw) - 80
-                    self.type = "MULTISUG"
+                    self.type = "MULTISIG"
                     for o in self.script[1:-2]:
                         # if o.str != '<65>' and o.str != '<33>':
                         # 0F20C8DAB4A8DFB50DD5CF4C276BA1FAB1C79CAE5B6641BE2F67FAACA838C1E6
