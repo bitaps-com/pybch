@@ -109,6 +109,16 @@ class TxScript():
                         self.address.append(b'\x00' + ripemd)
                         # p2sh address inside multisig?
 
+    def asm(self):
+        asm = ""
+        for o in self.script:
+            if o.data:
+                asm += binascii.hexlify(o.data).decode() + ' '
+            else:
+                asm += o.str + ' '
+        return asm.rstrip()
+
+
 
 
 
