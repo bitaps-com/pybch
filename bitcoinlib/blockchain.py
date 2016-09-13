@@ -8,7 +8,7 @@ from   .consensus import *
 
 class Opcode():
   """ Class opcode """
-  def __init__(self, raw_opcode, data):
+  def __init__(self, raw_opcode, data, data_length = b""):
     self.raw     = raw_opcode
     if self.raw in RAW_OPCODE:
         if self.raw in (OPCODE["OP_PUSHDATA1"], OPCODE["OP_PUSHDATA2"], OPCODE["OP_PUSHDATA4"]):
@@ -20,6 +20,7 @@ class Opcode():
     else:
       self.str ='[?]'
     self.data = data
+    self.data_length = data_length
 
   def __str__(self):
     return self.str
@@ -36,19 +37,25 @@ class Opcode():
     b = stream.read(1)
     if not b: return None
     data = b''
+    data_length = b''
     if b <= OPCODE["OP_PUSHDATA4"]:
       if b < OPCODE["OP_PUSHDATA1"]: s = int.from_bytes(b,'little')
       elif b == OPCODE["OP_PUSHDATA1"]: 
-        s = int.from_bytes( stream.read(1) ,'little')
-      elif b == OPCODE["OP_PUSHDATA2"]: s = int.from_bytes( stream.read(2) ,'little')
-      elif b == OPCODE["OP_PUSHDATA4"]: s = int.from_bytes( stream.read(4) ,'little')
+        data_length = stream.read(1)
+        s = int.from_bytes( data_length ,'little')
+      elif b == OPCODE["OP_PUSHDATA2"]: 
+        data_length = stream.read(2)
+        s = int.from_bytes( data_length ,'little')
+      elif b == OPCODE["OP_PUSHDATA4"]: 
+        data_length = stream.read(4)
+        s = int.from_bytes( data_length ,'little')
       data = stream.read(s)
       if len(data)!=s: 
         return None
-        print(ord(b))
-        print(data)
+        #print(ord(b))
+        #print(data)
         raise Exception('opcode read error')
-    return cls(b,data)
+    return cls(b,data,data_length)
 
 
 
@@ -250,6 +257,7 @@ class Transaction():
 
     def eval_script(self, input_index, script, _stack = None):
         script = list(script)
+        #print("debug version")
         if _stack is None: stack = []
         else: stack = _stack
         altstack = list()
@@ -464,14 +472,15 @@ class Transaction():
                     subscript = b''
                     # delete OP_CODESEPARATOR and SIGNATURE
                     for o in  escript + script:
-                        if o.raw != OPCODE['OP_CODESEPARATOR'] and o.data!=vchSig: subscript+=o.raw + o.data
+                        if o.raw != OPCODE['OP_CODESEPARATOR'] and o.data!=vchSig: 
+                            subscript+=o.raw +o.data_length + o.data
                     hashtype = vchSig[-1]
                     # print('hello')
                     # print("signatere type %s " % hashtype)
                     if hashtype == 0 : hashtype = 1
                     # print("lock time:")
                     # print(self.lock_time)
-                    # print(self.serialize(hashtype, input_index, subscript))
+                    #print(binascii.hexlify(self.serialize(hashtype, input_index, subscript)))
                     sigHash = double_sha256(self.serialize(hashtype,input_index, subscript)+int(hashtype).to_bytes(4,'little'))
                     stack.append(i2b(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)))
                     # print(sigHash)
@@ -508,7 +517,8 @@ class Transaction():
                         signatures.add(stack[-isig-k])
                     subscript=b''
                     for opcode in escript + script:
-                       if opcode.raw != OPCODE['OP_CODESEPARATOR'] and opcode.data not in signatures: subscript+=opcode.raw + opcode.data
+                       if opcode.raw != OPCODE['OP_CODESEPARATOR'] and opcode.data not in signatures: 
+                        subscript+=opcode.raw + opcode.data_length+opcode.data
                     fSuccess = 1
                     # print(nSigsCount)
                     while nSigsCount > 0:
@@ -522,6 +532,7 @@ class Transaction():
                         # fOk = checkSig(vchSig, vchPubKey, subscript, raw_tx, input_index)
                         hashtype = vchSig[-1]
                         if hashtype == 0 : hashtype = 1
+                        #print(binascii.hexlify(self.serialize(hashtype, input_index, subscript)))
                         sigHash = double_sha256(self.serialize(hashtype,input_index, subscript)+int(vchSig[-1]).to_bytes(4,'little'))
                         fOk = checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)
                         # print("fok %s" % fOk)

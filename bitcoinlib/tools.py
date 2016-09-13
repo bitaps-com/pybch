@@ -18,7 +18,7 @@ SCRIPT_TYPES = { "P2PKH":        0,
                  "P2SH" :        1,
                  "PUBKEY":       2,
                  "NULL_DATA":    3,
-                 "MULTISUG":     4,
+                 "MULTISIG":     4,
                  "NON_STANDART": 5
                 }
 
