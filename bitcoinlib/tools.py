@@ -19,7 +19,8 @@ SCRIPT_TYPES = { "P2PKH":        0,
                  "PUBKEY":       2,
                  "NULL_DATA":    3,
                  "MULTISIG":     4,
-                 "NON_STANDART": 5
+                 "NON_STANDART": 5,
+                 "SP2PKH": 6
                 }
 
 ECDSA_VERIFY_CONTEXT = ECDSA.secp256k1_context_create(3)
