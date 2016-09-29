@@ -7,6 +7,7 @@ import time
 import asyncio
 import random
 import struct 
+import hmac
 
 ECDSA = cdll.LoadLibrary("libsecp256k1.so")
 SIGHASH_ALL           = 0x00000001
@@ -194,7 +195,7 @@ def is_address_valid(addr):
 #
 #
 
-def BIP32create_master():
+def BIP32_create_master():
     rnd = random.SystemRandom()
     a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
     i = int((time.time()%0.01)*100000)
