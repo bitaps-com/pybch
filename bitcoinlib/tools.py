@@ -6,6 +6,7 @@ import struct
 import time
 import asyncio
 import random
+import struct 
 
 ECDSA = cdll.LoadLibrary("libsecp256k1.so")
 SIGHASH_ALL           = 0x00000001
@@ -13,6 +14,10 @@ SIGHASH_NONE          = 0x00000002
 SIGHASH_SINGLE        = 0x00000003
 SIGHASH_ANYONECANPAY  = 0x00000080
 MAX_INT_PRIVATE_KEY   = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+ECDSA_SEC256K1_ORDER  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+HDW_PURPOSE           = 0x8000002C # bip 43
+HDW_BITCOIN           = 0x80000000 # bitcoin
+
 
 SCRIPT_TYPES = { "P2PKH":        0,
                  "P2SH" :        1,
@@ -98,6 +103,147 @@ def decode_Base58(s):
             break
     return b'\x00' * pad + res
 
+def hmac_sha512(key, data):
+    return hmac.new(key, data, hashlib.sha512).digest()
+
+
+# Bitcoin keys 
+#
+#
+def generate_private_key():
+    q = time.time()
+    rnd = random.SystemRandom()
+    a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
+    i = int((time.time()%0.01)*100000)
+    h = a.to_bytes(32,byteorder="big")
+    while True:
+        h = hashlib.sha256(h).digest()
+        if i>1: i -= 1
+        else:
+            if int.from_bytes(h,byteorder="big")<MAX_INT_PRIVATE_KEY:
+                break
+    return h
+
+def private_key_from_int(k):
+    return int.to_bytes(k,byteorder="big",length=32)
+
+
+def private_key_wif(h, compressed = False):
+    #uncompressed: 0x80 + [32-byte secret] + [4 bytes of Hash() of previous 33 bytes], base58 encoded
+    #compressed: 0x80 + [32-byte secret] + 0x01 + [4 bytes of Hash() previous 34 bytes], base58 encoded
+    h = b'\x80' + h
+    if compressed: h += b'\x01' 
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
+
+def wif_to_private_key(h):
+    h=decode_Base58(h)
+    return h[1:33]
+
+def is_wif_valid(wif):
+    if wif[0] != '5': return False
+    h = decode_Base58(wif)
+    if len(h) != 37:  return False
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+
+def pubkey_from_private_key(private_key,compressed = False):
+    pub = create_string_buffer(64)
+    ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT,pub,private_key)
+    pp = create_string_buffer(65)
+    s = c_int(65)
+    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
+    return pp.raw[:s.value]
+
+def pubkey_to_address (pubkey):
+    return v_ripemd160_to_address(b'\x00'+pubkey_to_ripemd160(pubkey))
+
+def IsValidPubKey(key):
+    if len(key) < 33:
+        return False
+
+    if key[0] == 0x04 and len(key) != 65:
+        return False
+    elif key[0] == 0x02 or key[0] == 0x03:
+        if len(key) != 33:
+            return False
+    # else:  return  False
+    return True
+
+
+def pubkey_to_ripemd160(pubkey):
+    return ripemd160(hashlib.sha256(pubkey).digest())
+
+def v_ripemd160_to_address(h):
+    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    return encode_Base58(h)
+
+
+
+def is_address_valid(addr):
+    if addr[0] not in ('1','3'): return False
+    h = decode_Base58(addr)
+    checksum = h[-4:]
+    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
+    return True
+
+# BIP32 
+#
+#
+#
+
+def BIP32create_master():
+    rnd = random.SystemRandom()
+    a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
+    i = int((time.time()%0.01)*100000)
+    h = a.to_bytes(32,byteorder="big")
+    Key = b"Bitcoin seed"
+    while True:
+        h = hashlib.sha256(h).digest()
+        if i>1: i -= 1
+        else:
+            if int.from_bytes(h,byteorder="big")<MAX_INT_PRIVATE_KEY:
+                break
+    I = hmac_sha512(Key,h) 
+    M, C = I[:32], I[32:]
+    return b'\x04\x88\xAD\xE4\x00\x00\x00\x00\x00\x00\x00\x00\x00'+C+b'\x00'+M
+
+def CKDpriv(extended_master_key, i):
+    C = extended_master_key[13:45]
+    M = extended_master_key[45:]
+    version = extended_master_key[:4]
+    depth = int.from_bytes(extended_master_key[4:5],byteorder='big')+1
+    if depth > 255: return None
+    Mpub = pubkey_from_private_key(M[1:], True)
+    I = hmac_sha512(C,M+struct.pack(">L", i)) if i >= 0x80000000\
+    else hmac_sha512(C, Mpub+struct.pack(">L", i))
+    code = I[32:]
+    Iln = int.from_bytes(I[:32],byteorder='big')
+    if Iln > ECDSA_SEC256K1_ORDER: return None
+    k_int = (int.from_bytes(M[1:],byteorder='big')+Iln)%ECDSA_SEC256K1_ORDER
+    if k_int == 0:  return None
+    key = private_key_from_int(k_int)
+    return version + depth.to_bytes(1, byteorder='big') + pubkey_to_ripemd160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code +b'\x00' +key
+
+def CKDpub(extended_master_key, i):
+    C = extended_master_key[13:45]
+    Mpub = extended_master_key[45:]
+    version = extended_master_key[:4]
+    depth = int.from_bytes(extended_master_key[4:5],byteorder='big')+1
+    if depth > 255 or i >= 0x80000000: return None
+    I = hmac_sha512(C,Mpub+struct.pack(">L", i))
+    code = I[32:]
+    if int.from_bytes(I[:32],byteorder='big') > ECDSA_SEC256K1_ORDER: return None
+    pk = create_string_buffer(64)
+    if not ECDSA.secp256k1_ec_pubkey_parse(ECDSA_VERIFY_CONTEXT, pk, Mpub, len(Mpub)): return None
+    if not ECDSA.secp256k1_ec_pubkey_tweak_add(ECDSA_VERIFY_CONTEXT, pk, I[:32]) : return None
+    pp = create_string_buffer(65)
+    s = c_int(65)
+    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pk,1)
+    key = pp.raw[:s.value]
+    return version + depth.to_bytes(1, byteorder='big') + pubkey_to_ripemd160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code +key
 
 
 
@@ -176,20 +322,6 @@ def ripemd160(byte_string):
     return h.digest()
 
 
-def v_ripemd160_to_address(h):
-    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
-    return encode_Base58(h)
-
-def pubkey_to_address (pubkey):
-    return v_ripemd160_to_address(b'\x00'+pubkey_to_ripemd160(pubkey))
-
-
-def is_address_valid(addr):
-    if addr[0] not in ('1','3'): return False
-    h = decode_Base58(addr)
-    checksum = h[-4:]
-    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
-    return True
 
 
 def double_sha256(byte_string):
@@ -315,17 +447,6 @@ def i2b(i): return bn2vch(i)
 def b2i(b): return vch2bn(b)
 
 
-def IsValidPubKey(key):
-    if len(key) < 33:
-        return False
-
-    if key[0] == 0x04 and len(key) != 65:
-        return False
-    elif key[0] == 0x02 or key[0] == 0x03:
-        if len(key) != 33:
-            return False
-    # else:  return  False
-    return True
 
 ipaddress.IPv6Address.__str_old__ = ipaddress.IPv6Address.__str__
 def ip_to_str(self):
@@ -440,7 +561,7 @@ def checkSig(sig, pubKey, sigHash, ECDSA_CONTEXT):
         raise Exception('signature parse error')
     if not ECDSA.secp256k1_ec_pubkey_parse(ECDSA_CONTEXT, pk, pubKey, len(pubKey)):
         return 0
-        raise Exception('paubkey parse error')
+        raise Exception('pubkey parse error')
     result = ECDSA.secp256k1_ecdsa_verify(ECDSA_CONTEXT, sigHash, sgn, pk)
     return result
 
@@ -490,24 +611,20 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
-def generate_private_key():
-    q = time.time()
-    rnd = random.SystemRandom()
-    a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
-    i = int((time.time()%0.01)*100000)
-    h = a.to_bytes(32,byteorder="big")
-    while True:
-        h = hashlib.sha256(h).digest()
-        if i>1: i -= 1
-        else:
-            if int.from_bytes(h,byteorder="big")<MAX_INT_PRIVATE_KEY:
-                break
-    return h
+
+def ext_key_base58(k):
+    k += double_sha256(k)[:4]
+    return encode_Base58(k)
+
+def base58_to_ext_key(k):
+    k = decode_Base58(k)
+    return k[:-4]
 
 def key_to_btc_code(h):
     h = b'\x10\x01\xf8' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
+
 def key_to_inv_code(h):
     h = b'@\x01\xc9' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
@@ -517,18 +634,6 @@ def key_to_pmt_code(h):
     h = b'"<$' + h
     h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
     return encode_Base58(h)
-def private_key_from_int(k):
-    return int.to_bytes(k,byteorder="big",length=32)
-
-
-def private_key_wif(h):
-    h = b'\x80' + h
-    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
-    return encode_Base58(h)
-
-def wif_to_private_key(h):
-    h=decode_Base58(h)
-    return h[1:-4]
 
 def is_address_valid(addr):
     if addr[0] not in ('1','3'): return False
@@ -562,28 +667,13 @@ def is_pmt_code_valid(wif):
     if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
     return True
 
-def is_wif_valid(wif):
-    if wif[0] != '5': return False
-    h = decode_Base58(wif)
-    if len(h) != 37:  return False
-    checksum = h[-4:]
-    if hashlib.sha256(hashlib.sha256(h[:-4]).digest()).digest()[:4] != checksum: return False
-    return True
 
-def pubkey_to_ripemd160(pubkey):
-    return ripemd160(hashlib.sha256(pubkey).digest())
 
-def pubkey_from_private_key(private_key,compressed = False):
-    pub = create_string_buffer(64)
-    ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT,pub,private_key)
-    pp = create_string_buffer(65)
-    s = c_int(65)
-    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
-    return pp.raw[:s.value]
+
 
 def sign_message(msg, private_key):
     sign = create_string_buffer(64)
-    p= ECDSA.secp256k1_ecdsa_sign(ECDSA_VERIFY_CONTEXT, msg, sign, private_key ,None,None )
+    p= ECDSA.secp256k1_ecdsa_sign(ECDSA_VERIFY_CONTEXT, msg, sign, private_key ,None,None)
     return sign.raw
 
 def sign_message_der(msg, private_key):
