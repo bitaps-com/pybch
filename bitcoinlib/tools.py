@@ -246,6 +246,36 @@ def CKDpub(extended_master_key, i):
     key = pp.raw[:s.value]
     return version + depth.to_bytes(1, byteorder='big') + pubkey_to_ripemd160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code +key
 
+def ext_key_base58(k):
+    k += double_sha256(k)[:4]
+    return encode_Base58(k)
+
+def base58_to_ext_key(k):
+    k = decode_Base58(k)
+    return k[:-4]
+
+def BIP32_derive_key(extended_master_key, path, index):
+    # m / purpose' / coin_type' / account' / change / address_index
+    # 0x0488B21E public, 0x0488ADE4 private;
+    # purpose = 0x8000002C
+    # coin_tipe = 0x80000000
+    version = extended_master_key[:4]
+    depth = int.from_bytes(extended_master_key[4:5],byteorder='big')
+    if depth > len(path): return None
+    path = path[depth:]
+    if version == b'\x04\x88\xAD\xE4':
+        # derive private key
+        for p in path: extended_master_key = CKDpriv(extended_master_key, p)
+        return CKDpriv(extended_master_key, index)
+    elif version == b'\x04\x88\xB2\x1E':
+        # derive public key
+        for p in path: extended_master_key = CKDpub(extended_master_key, p)
+        return CKDpub(extended_master_key, index)
+
+def xpub_from_xpriv(xpriv):
+    Mpub = pubkey_from_private_key(xpriv[46:], True)
+    return b'\x04\x88\xB2\x1E'+xpriv[4:45]+Mpub
+
 
 
 
@@ -613,13 +643,7 @@ def chunks(l, n):
 
 
 
-def ext_key_base58(k):
-    k += double_sha256(k)[:4]
-    return encode_Base58(k)
 
-def base58_to_ext_key(k):
-    k = decode_Base58(k)
-    return k[:-4]
 
 def key_to_btc_code(h):
     h = b'\x10\x01\xf8' + h
