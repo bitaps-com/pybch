@@ -1,13 +1,20 @@
-import hashlib
-import binascii
 import io
-import time
 import json
 import math
-from   .opcodes import *
-from   .tools import *
-from   .consensus import *
+from .opcodes import *
+from .tools import *
+from .consensus import *
 from binascii import hexlify, unhexlify
+
+def get_stream(stream):
+    if type(stream) != io.BytesIO:
+        if type(stream) == str:
+            stream = unhexlify(stream)
+        if type(stream) == bytes:
+            stream = io.BytesIO(stream)
+        else:
+            raise TypeError
+    return stream
 
 class Opcode():
   """ Class opcode """
@@ -21,7 +28,7 @@ class Opcode():
     elif self.raw < b'L':
       self.str = '<%s>' % len(data)
     else:
-      self.str ='[?]'
+      self.str = '[?]'
     self.data = data
     self.data_length = data_length
 
@@ -62,19 +69,24 @@ class Opcode():
 
 
 
-class TxScript():
-    """ Bitcoin script class """
+class Script():
+    """ 
+    Bitcoin script class 
+    """
     def __init__(self, raw_script, coinbase = False):
         self.raw = raw_script
         stream = io.BytesIO(raw_script)
         self.script = []
         self.address = list()
         self.pattern = ""
+        self.asm = ""
         self.data = b''
         self.type = "NON_STANDART"
+        self.ntype = 5
         self.op_sig_count = 0
         if coinbase:
             self.pattern = "<coinbase>"
+            self.asm = hexlify(raw_script).decode()
             return
         while True:
             o = Opcode.pop_from_stream(stream)
@@ -83,30 +95,40 @@ class TxScript():
                 self.op_sig_count += 1
             self.script.append(o)
             self.pattern += o.str + ' '
+            if o.data:
+                self.asm += hexlify(o.data).decode() + ' '
+            else:
+                self.asm += o.str + ' '
+        self.asm = self.asm.rstrip()
         self.pattern= self.pattern.rstrip()
         # check script type
         if self.pattern == "OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG":
             self.type = "P2PKH"
-            self.address.append(b'\x00' + self.script[2].data)
+            self.ntype = 0
+            self.address.append(self.script[2].data)
         elif self.pattern == "OP_HASH160 <20> OP_EQUAL":
             self.type = "P2SH"
+            self.ntype = 1
             self.op_sig_count = 20
-            self.address.append(b'\x05' + self.script[1].data)
+            self.address.append(self.script[1].data)
         elif self.pattern == "<65> OP_CHECKSIG" or self.pattern == "<33> OP_CHECKSIG" :
             self.type = "PUBKEY"
+            self.ntype = 2
             ripemd = ripemd160(hashlib.sha256(self.script[0].data).digest())
-            self.address.append(b'\x00' + ripemd)
+            self.address.append(ripemd)
         elif len(self.script) == 2:
             if self.script[0].raw == b'j': # OP_RETURN
                 if self.script[1].raw < b'Q': # <0 to 80 bytes of data>
                     self.data = self.script[1].data
                     self.type = "NULL_DATA"
+                    self.ntype = 3
         elif len(self.script)>= 4:
             if self.script[-1].raw == b'\xae' and self.script[-2].raw <= b'`' and self.script[-2].raw >= b'Q' : #  OP_CHECKMULTISIG   "OP_1"  "OP_16"
                 if self.script[0].raw <= b'`' and self.script[0].raw >= b'Q':
                     self.vbare_multisig_accepted = ord(self.script[0].raw) - 80
                     self.bare_multisig_from = ord(self.script[-2].raw) - 80
                     self.type = "MULTISIG"
+                    self.ntype = 4
                     for o in self.script[1:-2]:
                         # if o.str != '<65>' and o.str != '<33>':
                         # 0F20C8DAB4A8DFB50DD5CF4C276BA1FAB1C79CAE5B6641BE2F67FAACA838C1E6
@@ -116,25 +138,15 @@ class TxScript():
                         #     break
                         self.op_sig_count += 1
                         ripemd = ripemd160(hashlib.sha256(o.data).digest())
-                        self.address.append(b'\x00' + ripemd)
+                        self.address.append(ripemd)
                         # p2sh address inside multisig?
 
-    def asm(self):
-        asm = ""
-        for o in self.script:
-            if o.data:
-                asm += binascii.hexlify(o.data).decode() + ' '
-            else:
-                asm += o.str + ' '
-        return asm.rstrip()
 
 
 
-
-
-class TxIn:
+class Input:
     """ Transaction Input class """
-    #  outpoint = (b'00f0f09...',n') transaction hash + out number 
+    #  outpoint = (b'00f0f09...',n')
     #  script   = raw bytes 
     #  sequense = int 
     def __init__(self, outpoint, script, sequence):
@@ -145,7 +157,7 @@ class TxIn:
         self.p2sh_type = None
         self.coinbase = False
         if outpoint == (b'\x00'*32 ,0xffffffff): self.coinbase = True
-        self.sig_script = TxScript(script, self.coinbase)
+        self.sig_script = Script(script, self.coinbase)
         self.double_spend = None
         self.lock = False
         self.addresses = []
@@ -153,15 +165,15 @@ class TxIn:
         if len(self.sig_script.script) > 0:
             try:
                 if len(self.sig_script.script[-1].data) <= 520:
-                    self.reedomscript = TxScript(self.sig_script.script[-1].data)
+                    self.reedomscript = Script(self.sig_script.script[-1].data)
                 else:
                     pass
             except Exception as err:
                 pass
 
-
     @classmethod
     def deserialize(cls, stream):
+        stream = get_stream(stream)
         outpoint = stream.read(32), int.from_bytes(stream.read(4), 'little')
         script_len = from_var_int(read_var_int(stream))
         script = stream.read(script_len)
@@ -169,14 +181,15 @@ class TxIn:
 
         return cls(outpoint, script, sequence)
 
-class TxOut:
+class Output:
     """ Transactin output class """
     def __init__(self, value, script):
         self.value = value
-        self.pk_script = TxScript(script)
+        self.pk_script = Script(script)
 
     @classmethod
     def deserialize(cls, stream):
+        stream = get_stream(stream)
         value = int.from_bytes(stream.read(8), 'little')
         script_len = from_var_int(read_var_int(stream))
         pk_script = stream.read(script_len)
@@ -195,6 +208,7 @@ class Witness:
 
     @classmethod
     def deserialize(cls, stream):
+        stream = get_stream(stream)
         empty = False
         witness_len = from_var_int(read_var_int(stream))
         witness = []
@@ -223,9 +237,8 @@ class Transaction():
         self.valid = True
         self.lock = False
         self.orphaned = False
-        self.out_sum = 0
-        self.in_sum = 0
-        self.tx_fee = 0
+        self.in_sum = None
+        self.tx_fee = None
         self.version = version
         self.tx_in_count = len(tx_in)
         self.tx_in = tx_in
@@ -241,27 +254,19 @@ class Transaction():
         else: self.timestamp = int(time.time())
         self.op_sig_count = 0
         self.sum_value_age = 0
-
+        self.total_outs_value = 0
         for i in self.tx_out:
             self.op_sig_count += i.pk_script.op_sig_count
             if i.pk_script.type=="NULL_DATA":
                 self.data = i.pk_script.data
-
-        # for i in self.tx_in:
-        #     self.op_sig_count += i.sig_script.op_sig_count
-        #     if i.reedomscript is not None:
-        #         self.op_sig_count += i.reedomscript.op_sig_count
-
+        for out in self.tx_out:
+            self.total_outs_value += out.value
 
 
     def __str__(self):
-        return 'Transaction object [%s] [%s]'% (binascii.hexlify(self.hash[::-1]),id(self))
+        return 'Transaction object [%s] [%s]'% (hexlify(self.hash[::-1]),id(self))
 
-    def total_out(self):
-        t = 0
-        for out in self.tx_out:
-            t += out.value
-        return t
+
     def serialize(self, sighash_type = 0, input_index = -1, subscript = b''):
         if self.tx_in_count-1 < input_index  : raise Exception('Input not exist')
         if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)): return b'\x01'+b'\x00'*31
@@ -302,7 +307,7 @@ class Transaction():
             input = {"txid": rh2s(i.outpoint[0]),
                      "vout": i.outpoint[1],
                      "scriptSig": {"hex": hexlify(i.sig_script.raw).decode(),
-                                   "asm": i.sig_script.asm()},
+                                   "asm": i.sig_script.asm},
                      "sequence": i.sequence}
             if i.coinbase:
                 input["coinbase"] = hexlify(i.sig_script.raw).decode()
@@ -314,7 +319,7 @@ class Transaction():
             out = {"value": o.value,
                    "n": index,
                    "scriptPubKey": {"hex": hexlify(o.pk_script.raw).decode()},
-                                    "asm": o.pk_script.asm(),
+                                    "asm": o.pk_script.asm,
                                     "type": o.pk_script.type}
             r["vout"].append(out)
 
@@ -535,8 +540,8 @@ class Transaction():
                     # print(stack)
                     vchPubKey = stack.pop()
                     vchSig    = stack.pop()
-                    if not IsValidSignatureEncoding(vchSig): raise Exception('signature  invalid')
-                    if not IsValidPubKey(vchPubKey): raise Exception('pubKey  invalid')
+                    if not is_valid_signature_encoding(vchSig): raise Exception('signature  invalid')
+                    if not is_valid_pub(vchPubKey): raise Exception('pubKey  invalid')
                     subscript = b''
                     # delete OP_CODESEPARATOR and SIGNATURE
                     for o in  escript + script:
@@ -550,7 +555,7 @@ class Transaction():
                     # print(self.lock_time)
                     #print(binascii.hexlify(self.serialize(hashtype, input_index, subscript)))
                     sigHash = double_sha256(self.serialize(hashtype,input_index, subscript)+int(hashtype).to_bytes(4,'little'))
-                    stack.append(i2b(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)))
+                    stack.append(i2b(check_sig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)))
                     # print(sigHash)
                     # print(rh2s(sigHash))
                     # print(checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT))
@@ -590,26 +595,24 @@ class Transaction():
                     fSuccess = 1
                     # print(nSigsCount)
                     while nSigsCount > 0:
-
                         # print('.')
                         vchSig = stack[-isig]
                         vchPubKey = stack[-ikey]
                         # to do bip 66 better implementation
-                        if not IsValidPubKey(vchPubKey): return  False,'pubKey invalid'
-                        if not IsValidSignatureEncoding(vchSig): return  False,'signature invalid'
+                        if not is_valid_pub(vchPubKey): return False, 'pubKey invalid'
+                        if not is_valid_signature_encoding(vchSig): return  False,'signature invalid'
                         # fOk = checkSig(vchSig, vchPubKey, subscript, raw_tx, input_index)
                         hashtype = vchSig[-1]
                         if hashtype == 0 : hashtype = 1
                         #print(binascii.hexlify(self.serialize(hashtype, input_index, subscript)))
                         sigHash = double_sha256(self.serialize(hashtype,input_index, subscript)+int(vchSig[-1]).to_bytes(4,'little'))
-                        fOk = checkSig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)
+                        fOk = check_sig(vchSig, vchPubKey, sigHash, ECDSA_VERIFY_CONTEXT)
                         # print("fok %s" % fOk)
                         if fOk:
                             isig += 1
                             nSigsCount -= 1
                         ikey += 1
                         nKeysCount -= 1
-
                         # If there are more signatures left than keys left,
                         # then too many signatures have failed. Exit early,
                         # without checking any further signatures.
@@ -647,6 +650,7 @@ class Transaction():
 
     @classmethod
     def deserialize(cls, stream):
+        stream = get_stream(stream)
         raw_tx = bytearray()
         raw_wtx = bytearray()
         start = stream.tell()
@@ -656,8 +660,8 @@ class Transaction():
         if marker == b"\x00" and flag ==  b"\x01":
             # segwit format
             point1 = stream.tell()
-            tx_in = read_var_list(stream, TxIn)
-            tx_out = read_var_list(stream, TxOut)
+            tx_in = read_var_list(stream, Input)
+            tx_out = read_var_list(stream, Output)
             point2 = stream.tell()
             inputs_count = len(tx_in)
             witness = [Witness.deserialize(stream) for i in range(inputs_count)]
@@ -688,8 +692,8 @@ class Transaction():
             marker = None
             flag = None
             version = int.from_bytes(stream.read(4), 'little')
-            tx_in = read_var_list(stream, TxIn)
-            tx_out = read_var_list(stream, TxOut)
+            tx_in = read_var_list(stream, Input)
+            tx_out = read_var_list(stream, Output)
             witness = None
             lock_time = int.from_bytes(stream.read(4), 'little')
             size = stream.tell() - start
@@ -725,20 +729,17 @@ class Block():
         self.side_branch_set = None
         self.tx_hash_list = list()
         self.op_sig_count = 0
-        l = 0
         for t in txs:
-            if t.hash in txs: raise Exception("CVE-2012-2459") # merkle tree malleability
+            if t.hash in txs:
+                raise Exception("CVE-2012-2459") # merkle tree malleability
             self.op_sig_count += t.op_sig_count
-            # print(l, end=":")
-            # print(t.op_sig_count, end=":")
-            # print(self.op_sig_count)
-            l+=1
             self.tx_hash_list.append(t.hash)
         self.target = None
         self.fee = 0
 
     @classmethod
     def deserialize(cls, stream):
+        stream = get_stream(stream)
         header = stream.read(80)
         stream.seek(-80, 1)
         kwargs = {
