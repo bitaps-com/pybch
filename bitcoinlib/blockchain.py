@@ -78,29 +78,31 @@ class Script():
         stream = io.BytesIO(raw_script)
         self.script = []
         self.address = list()
-        self.pattern = ""
-        self.asm = ""
+        self.pattern = bytearray()
+        self.asm = bytearray()
         self.data = b''
         self.type = "NON_STANDART"
         self.ntype = 5
         self.op_sig_count = 0
         if coinbase:
-            self.pattern = "<coinbase>"
+            self.pattern = b"<coinbase>"
             self.asm = hexlify(raw_script).decode()
             return
+        t = time.time()
         while True:
             o = Opcode.pop_from_stream(stream)
-            if o is None: break
+            if o is None:
+                break
             if o.raw == b'\xac' or o.raw == b'\xad':  # OP_CHECKSIG OP_CHECKSIGVERIFY
                 self.op_sig_count += 1
             self.script.append(o)
-            self.pattern += o.str + ' '
+            self.pattern += o.str.encode() + b' '
             if o.data:
-                self.asm += hexlify(o.data).decode() + ' '
+                self.asm += hexlify(o.data) + b' '
             else:
-                self.asm += o.str + ' '
-        self.asm = self.asm.rstrip()
-        self.pattern= self.pattern.rstrip()
+                self.asm += o.str.encode() + b' '
+        self.asm = str(self.asm).rstrip()
+        self.pattern= str(self.pattern).rstrip()
         # check script type
         if self.pattern == "OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG":
             self.type = "P2PKH"
