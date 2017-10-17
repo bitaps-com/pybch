@@ -103,7 +103,6 @@ class Script():
         self.asm = str(self.asm).rstrip()
         self.pattern= self.pattern.decode().rstrip()
         # check script type
-        print(self.pattern)
         if self.pattern == "OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG":
             self.type = "P2PKH"
             self.ntype = 0
