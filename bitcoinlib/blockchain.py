@@ -63,7 +63,6 @@ class Opcode():
       if len(data)!=s: 
         return None
         #print(ord(b))
-        #print(data)
         raise Exception('opcode read error')
     return cls(b,data,data_length)
 
@@ -102,8 +101,9 @@ class Script():
             else:
                 self.asm += o.str.encode() + b' '
         self.asm = str(self.asm).rstrip()
-        self.pattern= str(self.pattern).rstrip()
+        self.pattern= self.pattern.decode().rstrip()
         # check script type
+        print(self.pattern)
         if self.pattern == "OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG":
             self.type = "P2PKH"
             self.ntype = 0
