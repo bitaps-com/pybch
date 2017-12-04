@@ -9,7 +9,6 @@ import subprocess
 from distutils import log
 from distutils.core import setup
 from io import BytesIO
-from bitcoinlib.exceptions import DownloadError, CompilationError
 from subprocess import CalledProcessError
 
 
@@ -31,6 +30,14 @@ setup(name='bitcoinlib',
 LIB_SECP256K1_URL = "https://github.com/bitcoin-core/secp256k1/archive/master.zip"
 
 level=log.INFO
+
+class DownloadError(Exception):
+    """Error loading."""
+    pass
+
+class CompilationError(Exception):
+    """Compilation error."""
+    pass
 
 def download_library():
     libdir = os.path.abspath("libsecp256k1")
@@ -80,6 +87,7 @@ def build_libsecp256k1():
             )
             subprocess.check_call(["make"], cwd=build_temp)
             subprocess.check_call(["make", "install"], cwd=build_temp)
+            subprocess.check_call(["ldconfig"])
             log.info("----------------------------------------------------------------------")
 
         log.info("Bitcoinlib-1.0.1 successfully installed!")
