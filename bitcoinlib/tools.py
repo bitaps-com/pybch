@@ -9,6 +9,7 @@ import random
 import struct 
 import hmac
 
+ECDSA = None
 ECDSA = cdll.LoadLibrary("libsecp256k1.so")
 SIGHASH_ALL           = 0x00000001
 SIGHASH_NONE          = 0x00000002
@@ -44,6 +45,7 @@ inventory_type = {
     'MSG_FILTERED_BLOCK': 3
 }
 
+# Encoding functions
 
 def encode_base58(b):
     """Encode bytes to a base58-encoded string"""
@@ -92,13 +94,29 @@ def decode_base58(s):
             break
     return b'\x00' * pad + res
 
+# Hash functions
+
+def sha256(bytes):
+    return hashlib.sha256(bytes).digest()
+
+def double_sha256(bytes):
+    return sha256(sha256(bytes))
+
 def hmac_sha512(key, data):
     return hmac.new(key, data, hashlib.sha512).digest()
 
+def ripemd160(bytes):
+    h = hashlib.new('ripemd160')
+    h.update(bytes)
+    return h.digest()
 
-# Bitcoin keys 
-#
-#
+def hash160(bytes):
+    return ripemd160(sha256(bytes))
+
+
+
+# Bitcoin keys/ addresses
+
 def create_priv():
     """
     :return: 32 bytes private key 
@@ -154,13 +172,19 @@ def priv2pub(private_key, compressed = False):
     return pp.raw[:s.value]
 
 
+def address2hash160(address):
+    return decode_base58(address)[1:-4]
 
-def pub2address (pubkey, testnet = False):
+
+def pub2address(pubkey, testnet = False):
     if not testnet:
         return v_ripemd2address(b'\x00' + pub2ripemd160(pubkey))
     else:
         return v_ripemd2address(b'\x6f' + pub2ripemd160(pubkey))
 
+def pub2segwit(pubkey, testnet = False):
+    prefix = b'\xc4' if testnet else b'\x05'
+    return v_ripemd2address(prefix + hash160(b'\x00\x14' + pub2ripemd160(pubkey)))
 
 
 def is_valid_pub(key):

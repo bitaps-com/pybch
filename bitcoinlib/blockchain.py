@@ -62,7 +62,6 @@ class Opcode():
       data = stream.read(s)
       if len(data)!=s: 
         return None
-        #print(ord(b))
         raise Exception('opcode read error')
     return cls(b,data,data_length)
 
@@ -72,7 +71,9 @@ class Script():
     """ 
     Bitcoin script class 
     """
-    def __init__(self, raw_script, coinbase = False):
+    def __init__(self, raw_script, coinbase = False, segwit = True):
+        if type(raw_script) == str:
+            raw_script = unhexlify(raw_script)
         self.raw = raw_script
         stream = io.BytesIO(raw_script)
         self.script = []
@@ -80,8 +81,8 @@ class Script():
         self.pattern = bytearray()
         self.asm = bytearray()
         self.data = b''
-        self.type = "NON_STANDART"
-        self.ntype = 5
+        self.type = "NON_STANDARD"
+        self.ntype = 7
         self.op_sig_count = 0
         if coinbase:
             self.pattern = b"<coinbase>"
@@ -92,15 +93,17 @@ class Script():
             o = Opcode.pop_from_stream(stream)
             if o is None:
                 break
-            if o.raw == b'\xac' or o.raw == b'\xad':  # OP_CHECKSIG OP_CHECKSIGVERIFY
+            if o.raw == OPCODE["OP_CHECKSIG"] or o.raw == OPCODE["OP_CHECKSIGVERIFY"]:
                 self.op_sig_count += 1
+            if o.raw  ==OPCODE["OP_CHECKMULTISIG"]:
+                self.op_sig_count += 20
             self.script.append(o)
             self.pattern += o.str.encode() + b' '
             if o.data:
                 self.asm += hexlify(o.data) + b' '
             else:
                 self.asm += o.str.encode() + b' '
-        self.asm = str(self.asm).rstrip()
+        self.asm = self.asm.decode().rstrip()
         self.pattern= self.pattern.decode().rstrip()
         # check script type
         if self.pattern == "OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG":
@@ -110,38 +113,46 @@ class Script():
         elif self.pattern == "OP_HASH160 <20> OP_EQUAL":
             self.type = "P2SH"
             self.ntype = 1
-            self.op_sig_count = 20
             self.address.append(self.script[1].data)
         elif self.pattern == "<65> OP_CHECKSIG" or self.pattern == "<33> OP_CHECKSIG" :
             self.type = "PUBKEY"
             self.ntype = 2
-            ripemd = ripemd160(hashlib.sha256(self.script[0].data).digest())
-            self.address.append(ripemd)
-        elif len(self.script) == 2:
-            if self.script[0].raw == b'j': # OP_RETURN
-                if self.script[1].raw < b'Q': # <0 to 80 bytes of data>
-                    self.data = self.script[1].data
-                    self.type = "NULL_DATA"
-                    self.ntype = 3
+            self.address.append(hash160(self.script[0].data))
+        elif len(self.script) == 2 and self.script[0].raw == OPCODE["OP_RETURN"]:
+            # OP_RETURN
+            if len(self.script[1].data) < NULL_DATA_LIMIT: # <0 to 80 bytes of data>
+                self.data = self.script[1].data
+                self.type = "NULL_DATA"
+                self.ntype = 3
         elif len(self.script)>= 4:
-            if self.script[-1].raw == b'\xae' and self.script[-2].raw <= b'`' and self.script[-2].raw >= b'Q' : #  OP_CHECKMULTISIG   "OP_1"  "OP_16"
-                if self.script[0].raw <= b'`' and self.script[0].raw >= b'Q':
-                    self.vbare_multisig_accepted = ord(self.script[0].raw) - 80
-                    self.bare_multisig_from = ord(self.script[-2].raw) - 80
-                    self.type = "MULTISIG"
-                    self.ntype = 4
+            if self.script[-1].raw == OPCODE["OP_CHECKMULTISIG"] \
+                    and self.script[-2].raw <= OPCODE["OP_15"] \
+                    and self.script[-2].raw >= OPCODE["OP_1"] : #  OP_CHECKMULTISIG   "OP_1"  "OP_16"
+                if self.script[0].raw <= OPCODE["OP_15"] \
+                        and self.script[0].raw >= OPCODE["OP_1"]:
+                    self.op_sig_count = 0
                     for o in self.script[1:-2]:
-                        # if o.str != '<65>' and o.str != '<33>':
-                        # 0F20C8DAB4A8DFB50DD5CF4C276BA1FAB1C79CAE5B6641BE2F67FAACA838C1E6
-                        # в данной транзакции 66 байт на ключ он некоректен но
-                        # это не мешает тратить деньги используя другие ключи
-                        #     self.type = "NON_STANDART"
-                        #     break
+                        if not o.data:
+                            self.op_sig_count = 20
+                            break
                         self.op_sig_count += 1
-                        ripemd = ripemd160(hashlib.sha256(o.data).digest())
-                        self.address.append(ripemd)
-                        # p2sh address inside multisig?
+                        self.address.append(hash160(o.data))
+                    else:
+                        self.bare_multisig_accepted = ord(self.script[0].raw) - 80
+                        self.bare_multisig_from = ord(self.script[-2].raw) - 80
+                        self.type = "MULTISIG"
+                        self.ntype = 4
 
+        elif segwit:
+            if self.pattern == "OP_0 <20>":
+                self.type = "P2WPKH"
+                self.op_sig_count = 1
+                self.ntype = 5
+                self.address.append(b"\x00"+self.script[1].data)
+            elif self.pattern == "OP_0 <32>":
+                self.type = "P2WSH"
+                self.ntype = 6
+                self.address.append(b"\x00"+self.script[1].data)
 
 
 
@@ -179,8 +190,8 @@ class Input:
         script_len = from_var_int(read_var_int(stream))
         script = stream.read(script_len)
         sequence = int.from_bytes(stream.read(4), 'little')
-
         return cls(outpoint, script, sequence)
+
 
 class Output:
     """ Transactin output class """
@@ -676,14 +687,13 @@ class Transaction():
             raw_tx += stream.read(point2 - point1)
             stream.seek(point3-point2, 1)
             raw_tx += stream.read(4)
-
-            tx_id = hashlib.sha256(hashlib.sha256(raw_tx).digest()).digest()
+            tx_id = double_sha256(raw_tx)
             for w in witness:
                 if not w.empty:
                     # caluculate wtx_id
                     stream.seek(start)
                     data = stream.read(size)
-                    wtx_id = hashlib.sha256(hashlib.sha256(data).digest()).digest()
+                    wtx_id = double_sha256(data)
                     break
                 else:
                     wtx_id = tx_id
@@ -700,7 +710,7 @@ class Transaction():
             size = stream.tell() - start
             stream.seek(start)
             data = stream.read(size)
-            tx_id = hashlib.sha256(hashlib.sha256(data).digest()).digest()
+            tx_id = double_sha256(data)
             wtx_id = None
             vsize = size
 
