@@ -150,7 +150,7 @@ def priv2WIF(h, compressed = False, testnet = False):
     return encode_base58(h)
 
 def WIF2priv(h):
-    h=decode_base58(h)
+    h = decode_base58(h)
     return h[1:33]
 
 def is_WIF_valid(wif):
@@ -178,13 +178,16 @@ def address2hash160(address):
 
 def pub2address(pubkey, testnet = False):
     if not testnet:
-        return v_ripemd2address(b'\x00' + pub2ripemd160(pubkey))
+        return v_ripemd2address(b'\x00' + hash160(pubkey))
     else:
-        return v_ripemd2address(b'\x6f' + pub2ripemd160(pubkey))
+        return v_ripemd2address(b'\x6f' + hash160(pubkey))
 
 def pub2segwit(pubkey, testnet = False):
     prefix = b'\xc4' if testnet else b'\x05'
-    return v_ripemd2address(prefix + hash160(b'\x00\x14' + pub2ripemd160(pubkey)))
+    return v_ripemd2address(prefix + hash160(b'\x00\x14' + hash160(pubkey)))
+
+def pub2hash160segwit(pubkey, testnet = False):
+    return hash160(b'\x00\x14' + hash160(pubkey))
 
 
 def is_valid_pub(key):
@@ -200,11 +203,8 @@ def is_valid_pub(key):
     return True
 
 
-def pub2ripemd160(pubkey):
-    return ripemd160(hashlib.sha256(pubkey).digest())
-
 def v_ripemd2address(h):
-    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    h += double_sha256(h)[:4]
     return encode_base58(h)
 
 def ripemd2address(h, testnet = False, p2sh = False):
@@ -213,7 +213,7 @@ def ripemd2address(h, testnet = False, p2sh = False):
     else:
         prefix = b'\xc4' if testnet else b'\x05'
     h = prefix + h
-    h += hashlib.sha256(hashlib.sha256(h).digest()).digest()[:4]
+    h += double_sha256(h)[:4]
     return encode_base58(h)
 
 
@@ -254,7 +254,7 @@ def CKDpriv(extended_master_key, i):
     k_int = (int.from_bytes(M[1:],byteorder='big')+Iln)%ECDSA_SEC256K1_ORDER
     if k_int == 0:  return None
     key = priv_from_int(k_int)
-    return version + depth.to_bytes(1, byteorder='big') + pub2ripemd160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code + b'\x00' + key
+    return version + depth.to_bytes(1, byteorder='big') + hash160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code + b'\x00' + key
 
 def CKDpub(extended_master_key, i):
     C = extended_master_key[13:45]
@@ -272,7 +272,7 @@ def CKDpub(extended_master_key, i):
     s = c_int(65)
     ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pk,1)
     key = pp.raw[:s.value]
-    return version + depth.to_bytes(1, byteorder='big') + pub2ripemd160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code + key
+    return version + depth.to_bytes(1, byteorder='big') + hash160(Mpub)[:4] + i.to_bytes(4, byteorder='big') + code + key
 
 def ext_key_base58(k):
     k += double_sha256(k)[:4]
