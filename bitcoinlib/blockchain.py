@@ -313,17 +313,21 @@ class Transaction():
         else:
             return result
 
-    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, scriptCode, amount, private_key):
+    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, P2WPKHredeemScript, amount, private_key):
         if type(private_key) == str:
             private_key = WIF2priv(private_key)
         pubkey = priv2pub(private_key, True)
+        pubkey_hash160 = hash160(pubkey)
+        scriptCode  = b"\x19" + OPCODE["OP_DUP"] + OPCODE["OP_HASH160"]
+        scriptCode += b'\x14' + pubkey_hash160 + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]
+        self.tx_in[0].script = Script(b'\x16\x00\x14' + pubkey_hash160) # P2WPKHredeemScript
         sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message_der(sighash, private_key) + sighash_type.to_bytes(1,'little')
         self.witness[input_index] = Witness([signature, pubkey])
 
     def sighash(self, sighash_type, input_index, scriptCode, hex = False):
         if type(scriptCode) == str:
-            scriptCode = unhexlify(scriptCode)
+         scriptCode = unhexlify(scriptCode)
         if self.tx_in_count-1 < input_index:
             raise Exception('Input not exist')
         preimage = bytearray()
