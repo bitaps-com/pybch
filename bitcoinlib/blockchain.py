@@ -280,6 +280,8 @@ class Transaction():
                 self.data = i.pk_script.data
         for out in self.tx_out:
             self.total_outs_value += out.value
+        if witness is None:
+            self.witness = [Witness.deserialize(b"\x00") for i in range(len(tx_in))]
 
 
     def __str__(self):
@@ -314,7 +316,7 @@ class Transaction():
     def sign_P2SHP2WPKH_input(self, sighash_type, input_index, scriptCode, amount, private_key):
         if type(private_key) == str:
             private_key = WIF2priv(private_key)
-        pubkey = priv2pub(private_key, True)
+        pubkey = priv2pub(private_key, True)k
         sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message(sighash, private_key)
         self.witness[input_index] = [signature, pubkey]
