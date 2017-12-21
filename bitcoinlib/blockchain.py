@@ -390,7 +390,7 @@ class Transaction():
         preimage += hashPrevouts + hashSequence + outpoint + scriptCode + value + nSequence + hashOutputs
         preimage += self.lock_time.to_bytes(4, 'little')
         preimage += sighash_type.to_bytes(4, 'little')
-        return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()coin
+        return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()
 
 
     def json(self):
