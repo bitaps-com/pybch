@@ -173,11 +173,11 @@ class Input:
         self.double_spend = None
         self.lock = False
         self.addresses = []
-        self.reedomscript = None
+        self.redeem_script = None
         if len(self.sig_script.script) > 0:
             try:
                 if len(self.sig_script.script[-1].data) <= 520:
-                    self.reedomscript = Script(self.sig_script.script[-1].data)
+                    self.redeem_script = Script(self.sig_script.script[-1].data)
                 else:
                     pass
             except Exception as err:
@@ -320,7 +320,7 @@ class Transaction():
         pubkey_hash160 = hash160(pubkey)
         scriptCode  = b"\x19" + OPCODE["OP_DUP"] + OPCODE["OP_HASH160"]
         scriptCode += b'\x14' + pubkey_hash160 + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]
-        self.tx_in[0].script = Script(b'\x16\x00\x14' + pubkey_hash160) # P2WPKHredeemScript
+        self.tx_in[input_index].sig_script = Script(b'\x16\x00\x14' + pubkey_hash160) # P2WPKHredeemScript
         sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message_der(sighash, private_key) + sighash_type.to_bytes(1,'little')
         self.witness[input_index] = Witness([signature, pubkey])
