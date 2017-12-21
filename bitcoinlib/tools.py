@@ -175,6 +175,14 @@ def priv2pub(private_key, compressed = False):
 def address2hash160(address):
     return decode_base58(address)[1:-4]
 
+def address_type(address):
+    if address[0] in ('2', '3'):
+        return 'P2SH'
+    if address[0] in ('1', 'm', 'n'):
+        return 'P2PKH'
+    return 'UNKNOWN'
+
+    return decode_base58(address)[1:-4]
 
 def pub2address(pubkey, testnet = False):
     if not testnet:
