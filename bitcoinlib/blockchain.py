@@ -386,12 +386,12 @@ class Transaction():
         value = amount.to_bytes(8,'little')
         # 8. hashOutputs (32-byte hash)
         ho = bytearray()
-        for n, i in enumerate(self.tx_out):
+        for n, o in enumerate(self.tx_out):
             if  (sighash_type&31) != SIGHASH_SINGLE  and  (sighash_type&31) != SIGHASH_NONE:
-                ho += i.value.to_bytes(8,'little')+to_var_int(len(i.pk_script.raw))+i.pk_script.raw
+                ho += o.value.to_bytes(8,'little')+to_var_int(len(o.pk_script.raw))+o.pk_script.raw
             elif (sighash_type&31) == SIGHASH_SINGLE and input_index < len(self.tx_out):
                 if input_index == n:
-                    ho += i.value.to_bytes(8, 'little') + to_var_int(len(i.pk_script.raw)) + i.pk_script.raw
+                    ho += o.value.to_bytes(8, 'little') + to_var_int(len(o.pk_script.raw)) + o.pk_script.raw
         hashOutputs = double_sha256(ho) if ho else b'\x00'*32
         preimage += hashPrevouts + hashSequence + outpoint + scriptCode + value + nSequence + hashOutputs
         preimage += self.lock_time.to_bytes(4, 'little')
