@@ -319,7 +319,7 @@ class Transaction():
         pubkey = priv2pub(private_key, True)
         sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message(sighash, private_key)
-        self.witness[input_index] = [signature, pubkey]
+        self.witness[input_index] = Witness([signature, pubkey])
 
     def sighash(self, sighash_type, input_index, scriptCode, hex = False):
         if type(scriptCode) == str:
