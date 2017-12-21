@@ -186,7 +186,7 @@ def pub2segwit(pubkey, testnet = False):
     prefix = b'\xc4' if testnet else b'\x05'
     return v_ripemd2address(prefix + hash160(b'\x00\x14' + hash160(pubkey)))
 
-def pub2hash160segwit(pubkey, testnet = False):
+def pub2hash160segwit(pubkey):
     return hash160(b'\x00\x14' + hash160(pubkey))
 
 

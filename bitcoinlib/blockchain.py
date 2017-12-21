@@ -210,7 +210,7 @@ class Output:
 class Witness:
     def __init__(self, data, empty = False):
         self.empty = empty
-        self.witness = data
+        self.witness = [b"\x00"] if empty else data
 
     def __str__(self):
         return json.dumps([binascii.hexlify(w).decode() for w in self.witness])
@@ -221,18 +221,25 @@ class Witness:
     @classmethod
     def deserialize(cls, stream):
         stream = get_stream(stream)
-        empty = False
+        empty = True
         witness_len = from_var_int(read_var_int(stream))
         witness = []
-        for i in range(witness_len):
-            l = from_var_int(read_var_int(stream))
-            w = stream.read(l)
-            witness.append(w)
-            if w == b'\x00' and witness_len == 1:
-                empty = True
+        if witness_len:
+            for i in range(witness_len):
+                l = from_var_int(read_var_int(stream))
+                w = stream.read(l)
+                witness.append(w)
+            empty = False
         return cls(witness, empty)
 
+    def serialize(self):
+        if self.empty:
+            return b'\x00'
 
+        n = to_var_int(len(self.witness))
+        for w in self.witness:
+            n += to_var_int(len(w)) + w
+        return n
 
 
 class Transaction():
@@ -279,31 +286,112 @@ class Transaction():
         return 'Transaction object [%s] [%s]'% (hexlify(self.hash[::-1]),id(self))
 
 
-    def serialize(self, sighash_type = 0, input_index = -1, subscript = b''):
-        if self.tx_in_count-1 < input_index  : raise Exception('Input not exist')
-        if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)): return b'\x01'+b'\x00'*31
+    def serialize(self, segwit = False, hex = False):
         version = self.version.to_bytes(4,'little')
-        ninputs = b'\x01' if sighash_type &  SIGHASH_ANYONECANPAY else to_var_int(self.tx_in_count)
+        ninputs = to_var_int(self.tx_in_count)
         inputs = []
+        for number, i in enumerate(self.tx_in):
+            input = i.outpoint[0]+i.outpoint[1].to_bytes(4,'little')
+            input += to_var_int(len(i.sig_script.raw)) + i.sig_script.raw
+            input += i.sequence.to_bytes(4,'little')
+            inputs.append(input)
+        nouts = to_var_int(self.tx_out_count)
+        outputs = []
+        for number, i in enumerate(self.tx_out):
+            outputs.append(i.value.to_bytes(8,'little')+to_var_int(len(i.pk_script.raw))+i.pk_script.raw)
+        marke_flag = b"\x00\x01" if segwit else b""
+        witness = b""
+        if segwit:
+            for w in self.witness:
+                witness += w.serialize()
+        result = version + marke_flag + ninputs + b''.join(inputs) +\
+            nouts + b''.join(outputs) + witness + self.lock_time.to_bytes(4,'little')
+        if hex:
+            return hexlify(result).decode()
+        else:
+            return result
+
+    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, scriptCode, private_key):
+        if type(private_key) == str:
+            private_key = WIF2priv(private_key)
+        pubkey = priv2pub(private_key, True)
+        sighash = self.sighash_segwit(sighash_type, input_index, scriptCode)
+        signature = sign_message(sighash, private_key)
+        self.witness[input_index] = [signature, pubkey]
+
+    def sighash(self, sighash_type, input_index, scriptCode, hex = False):
+        if type(scriptCode) == str:
+            scriptCode = unhexlify(scriptCode)
+        if self.tx_in_count-1 < input_index:
+            raise Exception('Input not exist')
+        preimage = bytearray()
+        if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)):
+            return double_sha256(b'\x01'+b'\x00'*31 + sighash_type.to_bytes(4, 'little'))
+        preimage += self.version.to_bytes(4,'little')
+        preimage += b'\x01' if sighash_type &  SIGHASH_ANYONECANPAY else to_var_int(self.tx_in_count)
         for number, i in enumerate(self.tx_in):
             if (sighash_type &  SIGHASH_ANYONECANPAY) and (input_index != number): continue
             input = i.outpoint[0]+i.outpoint[1].to_bytes(4,'little')
-            if sighash_type == 0 or input_index == number:  
-                input += ((to_var_int(len(subscript)) + subscript) if sighash_type else \
+            if sighash_type == 0 or input_index == number:
+                input += ((to_var_int(len(scriptCode)) + scriptCode) if sighash_type else \
                 (to_var_int(len(i.sig_script.raw)) + i.sig_script.raw)) + i.sequence.to_bytes(4,'little')
             else:
                 input += b'\x00' + (i.sequence.to_bytes(4,'little') if \
                 ((sighash_type&31) == SIGHASH_ALL) else b'\x00\x00\x00\x00')
-            inputs.append(input)
-        nouts = b'\x00' if (sighash_type&31) == SIGHASH_NONE else ( to_var_int(input_index + 1) if \
+            preimage += input
+        preimage += b'\x00' if (sighash_type&31) == SIGHASH_NONE else ( to_var_int(input_index + 1) if \
             (sighash_type&31) == SIGHASH_SINGLE else to_var_int(self.tx_out_count))
-        outputs = []
         if  (sighash_type&31) != SIGHASH_NONE:
             for number, i in enumerate(self.tx_out):
                 if number > input_index and (sighash_type&31) == SIGHASH_SINGLE: continue
-                outputs.append(b'\xff'*8+b'\x00' if (sighash_type&31) == SIGHASH_SINGLE and (input_index != number)\
+                preimage +=(b'\xff'*8+b'\x00' if (sighash_type&31) == SIGHASH_SINGLE and (input_index != number)\
                 else i.value.to_bytes(8,'little')+to_var_int(len(i.pk_script.raw))+i.pk_script.raw)
-        return version+ninputs+b''.join(inputs)+nouts+b''.join(outputs)+self.lock_time.to_bytes(4,'little')
+        preimage += self.lock_time.to_bytes(4,'little')
+        preimage += sighash_type.to_bytes(4, 'little')
+        return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()
+
+
+    def sighash_segwit(self, sighash_type, input_index, scriptCode, amount, hex = False):
+        if type(scriptCode) == str:
+            scriptCode = unhexlify(scriptCode)
+        if self.tx_in_count-1 < input_index:
+            raise Exception('Input not exist')
+        preimage = bytearray()
+        # 1. nVersion of the transaction (4-byte little endian)
+        preimage += self.version.to_bytes(4,'little')
+        # 2. hashPrevouts (32-byte hash)
+        # 3. hashSequence (32-byte hash)
+        # 4. outpoint (32-byte hash + 4-byte little endian)
+        # 5. scriptCode of the input (serialized as scripts inside CTxOuts)
+        # 6. value of the output spent by this input (8-byte little endian)
+        # 7. nSequence of the input (4-byte little endian)
+        hp = bytearray()
+        hs = bytearray()
+        for n, i in enumerate(self.tx_in):
+            if not (sighash_type & SIGHASH_ANYONECANPAY):
+                hp += i.outpoint[0] + i.outpoint[1].to_bytes(4,'little')
+                if (sighash_type&31) != SIGHASH_SINGLE and (sighash_type&31) != SIGHASH_NONE:
+                    hs += i.sequence.to_bytes(4,'little')
+            if n == input_index:
+                outpoint = i.outpoint[0]+i.outpoint[1].to_bytes(4,'little')
+                nSequence = i.sequence.to_bytes(4,'little')
+        hashPrevouts = double_sha256(hp) if hp else b'\x00'*32
+        hashSequence = double_sha256(hs) if hs else b'\x00'*32
+        value = amount.to_bytes(8,'little')
+        # 8. hashOutputs (32-byte hash)
+        ho = bytearray()
+        for n, i in enumerate(self.tx_out):
+            if  (sighash_type&31) != SIGHASH_SINGLE  and  (sighash_type&31) != SIGHASH_NONE:
+                ho += i.value.to_bytes(8,'little')+to_var_int(len(i.pk_script.raw))+i.pk_script.raw
+            elif (sighash_type&31) == SIGHASH_SINGLE and input_index < len(self.tx_out):
+                if input_index == n:
+                    ho += i.value.to_bytes(8, 'little') + to_var_int(len(i.pk_script.raw)) + i.pk_script.raw
+        hashOutputs = double_sha256(ho) if ho else b'\x00'*32
+        preimage += hashPrevouts + hashSequence + outpoint + scriptCode + value + nSequence + hashOutputs
+        preimage += self.lock_time.to_bytes(4, 'little')
+        preimage += sighash_type.to_bytes(4, 'little')
+        return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()coin
+
 
     def json(self):
         r = dict()
@@ -326,7 +414,7 @@ class Transaction():
             r["vin"].append(input)
         if self.witness is not None:
             for index, w in enumerate(self.witness):
-                r["vin"][index]["txinwitness"] = w.hex()
+                r["vin"][index]["witness"] = w.hex()
         for index, o in enumerate(self.tx_out):
             out = {"value": o.value,
                    "n": index,
@@ -700,12 +788,12 @@ class Transaction():
             vsize = math.ceil((len(raw_tx) * 3 + size) / 4)
         else:
             stream.seek(start)
-            marker = None
-            flag = None
+            marker = b"\x00"
+            flag = b"\x01"
             version = int.from_bytes(stream.read(4), 'little')
             tx_in = read_var_list(stream, Input)
             tx_out = read_var_list(stream, Output)
-            witness = None
+            witness = [Witness.deserialize(b"\x00") for i in range(len(tx_in))]
             lock_time = int.from_bytes(stream.read(4), 'little')
             size = stream.tell() - start
             stream.seek(start)
