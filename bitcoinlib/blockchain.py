@@ -313,7 +313,7 @@ class Transaction():
         else:
             return result
 
-    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, P2WPKHredeemScript, amount, private_key):
+    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, amount, private_key):
         if type(private_key) == str:
             private_key = WIF2priv(private_key)
         pubkey = priv2pub(private_key, True)
