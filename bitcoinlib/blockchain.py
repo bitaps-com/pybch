@@ -311,11 +311,11 @@ class Transaction():
         else:
             return result
 
-    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, scriptCode, private_key):
+    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, scriptCode, amount, private_key):
         if type(private_key) == str:
             private_key = WIF2priv(private_key)
         pubkey = priv2pub(private_key, True)
-        sighash = self.sighash_segwit(sighash_type, input_index, scriptCode)
+        sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message(sighash, private_key)
         self.witness[input_index] = [signature, pubkey]
 
