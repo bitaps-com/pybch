@@ -363,6 +363,8 @@ class Transaction():
             self.tx_in[input_index].amount = amount
         if private_key is not None:
             self.tx_in[input_index].private_key = private_key
+        else:
+            private_key = self.tx_in[input_index].private_key
         pubkey = priv2pub(private_key, True)
         pubkey_hash160 = hash160(pubkey)
         scriptCode  = b"\x19" + OPCODE["OP_DUP"] + OPCODE["OP_HASH160"]
