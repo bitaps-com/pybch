@@ -364,6 +364,8 @@ class Transaction():
             private_key = WIF2priv(private_key)
         if amount is not None:
             self.tx_in[input_index].amount = amount
+        else:
+            amount = self.tx_in[input_index].amount
         if private_key is not None:
             self.tx_in[input_index].private_key = private_key
         else:
