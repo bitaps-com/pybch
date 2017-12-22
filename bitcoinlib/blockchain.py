@@ -163,7 +163,7 @@ class Input:
     #  sequense = int 
     def __init__(self, outpoint, script, sequence, amount = None, private_key = None):
         if type(outpoint[0]) == str:
-            outpoint[0] = unhexlify(outpoint[0])[::-1]
+            outpoint = (unhexlify(outpoint[0])[::-1], outpoint[1])
         if type(outpoint[0]) == str:
             private_key = WIF2priv(private_key)
         self.outpoint = outpoint
