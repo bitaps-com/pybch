@@ -161,11 +161,16 @@ class Input:
     #  outpoint = (b'00f0f09...',n')
     #  script   = raw bytes 
     #  sequense = int 
-    def __init__(self, outpoint, script, sequence, amount = None):
+    def __init__(self, outpoint, script, sequence, amount = None, private_key = None):
+        if type(outpoint[0]) == str:
+            outpoint[0] = unhexlify(outpoint[0])[::-1]
+        if type(outpoint[0]) == str:
+            private_key = WIF2priv(private_key)
         self.outpoint = outpoint
         self.sequence = sequence
         self.pk_script = None
         self.amount = amount
+        self.private_key = private_key
         self.p2sh_type = None
         self.coinbase = False
         if outpoint == (b'\x00'*32 ,0xffffffff): self.coinbase = True
@@ -289,10 +294,12 @@ class Transaction():
         self.hash = double_sha256(self.serialize(segwit=False))
         self.whash = double_sha256(self.serialize(segwit=True))
 
-    def add_input(self, tx_hash, output_number, sequence = 0xffffffff, sig_script = b"", amount = None):
-        if type(tx_hash) == str:
-            tx_hash = unhexlify(tx_hash)[::-1]
-        self.tx_in.append(Input(tx_hash, output_number), sig_script, sequence, amount)
+    def add_input(self, tx_hash, output_number,
+                  sequence = 0xffffffff,
+                  sig_script = b"",
+                  amount = None,
+                  private_key = None):
+        self.tx_in.append(Input(tx_hash, output_number), sig_script, sequence, amount, private_key)
         self.recalculate_txid()
 
     def add_P2SH_output(self, amount, p2sh_address):
@@ -346,11 +353,13 @@ class Transaction():
         else:
             return result
 
-    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, private_key, amount = None):
+    def sign_P2SHP2WPKH_input(self, sighash_type, input_index, private_key = None, amount = None):
         if type(private_key) == str:
             private_key = WIF2priv(private_key)
         if amount is not None:
             self.tx_in[input_index].amount = amount
+        if private_key is not None:
+            self.tx_in[input_index].private_key = private_key
         pubkey = priv2pub(private_key, True)
         pubkey_hash160 = hash160(pubkey)
         scriptCode  = b"\x19" + OPCODE["OP_DUP"] + OPCODE["OP_HASH160"]
