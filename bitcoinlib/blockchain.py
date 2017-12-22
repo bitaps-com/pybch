@@ -269,7 +269,10 @@ class Transaction():
         self.tx_out_count = len (tx_out)
         self.tx_out = tx_out
         self.lock_time = lock_time
-        self.coinbase = self.tx_in[0].coinbase
+        if self.tx_in:
+            self.coinbase = self.tx_in[0].coinbase
+        else:
+            self.coinbase = False
         self.double_spend = 0
         self.data = None
         self.ip = None
