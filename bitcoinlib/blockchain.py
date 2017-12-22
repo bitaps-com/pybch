@@ -243,7 +243,7 @@ class Witness:
 
 
 class Transaction():
-    def __init__(self, version, tx_in, tx_out, lock_time,
+    def __init__(self, version = 1, tx_in = [], tx_out = [] , lock_time = 0,
                  hash=None, size = 0, timestamp = None,
                  marker = None, flag = None, witness = None,
                  whash = None, vsize = None):
@@ -282,6 +282,39 @@ class Transaction():
             self.total_outs_value += out.value
         if witness is None:
             self.witness = [Witness.deserialize(b"\x00") for i in range(len(tx_in))]
+        if hash is None:
+            self.recalculate_txid()
+
+    def recalculate_txid(self):
+        self.hash = double_sha256(self.serialize(segwit=False))
+        self.whash = double_sha256(self.serialize(segwit=True))
+
+    def add_input(self, tx_hash, output_number, sequence, sig_script = b""):
+        if type(tx_hash) == str:
+            tx_hash = unhexlify(tx_hash)[::-1]
+        self.tx_in.append(Input(tx_hash, output_number), sig_script, sequence)
+        self.recalculate_txid()
+
+    def add_P2SH_output(self, amount, p2sh_address):
+        if type(p2sh_address)==str:
+            p2sh_address = decode_base58(p2sh_address)[1:-4]
+        if len(p2sh_address) != 20:
+            raise Exception("Invalid output hash160")
+        self.tx_out.append(Output(amount,
+                           OPCODE["OP_HASH160"] + b'\x14' + p2sh_address + OPCODE["OP_EQUAL"]))
+        self.recalculate_txid()
+
+    def add_P2PKH_output(self, amount, p2pkh_address):
+        if type(p2pkh_address)==str:
+            p2pkh_address = decode_base58(p2pkh_address)[1:-4]
+        if len(p2pkh_address) != 20:
+            raise p2pkh_address("Invalid output hash160")
+        self.tx_out.append(Output(amount,
+                           OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
+                           p2pkh_address + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]))
+        self.recalculate_txid()
+
+
 
 
     def __str__(self):
@@ -324,6 +357,7 @@ class Transaction():
         sighash = self.sighash_segwit(sighash_type, input_index, scriptCode, amount)
         signature = sign_message_der(sighash, private_key) + sighash_type.to_bytes(1,'little')
         self.witness[input_index] = Witness([signature, pubkey])
+        self.recalculate_txid()
 
     def sighash(self, sighash_type, input_index, scriptCode, hex = False):
         if type(scriptCode) == str:

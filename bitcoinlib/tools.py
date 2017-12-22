@@ -163,7 +163,7 @@ def is_WIF_valid(wif):
     return True
 
 
-def priv2pub(private_key, compressed = False):
+def priv2pub(private_key, compressed = True):
     pub = create_string_buffer(64)
     ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT,pub,private_key)
     pp = create_string_buffer(65)
