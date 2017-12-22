@@ -98,3 +98,5 @@ class SighashTests(unittest.TestCase):
         h = tx.sighash(SIGHASH_ALL, 0, unhexlify(b"76a9140c7619c92ef6e9260f64b5ccdf0e47b3004bdbdf88ac"), True)
         self.assertEqual(h,
 						 "76b376fec8ccc7f51467466c6625c4a355277abe9ffebef2310f6d74f6496b01")
+
+
