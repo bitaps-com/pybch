@@ -302,7 +302,7 @@ class Transaction():
                   sig_script = b"",
                   amount = None,
                   private_key = None):
-        self.tx_in.append(Input(tx_hash, output_number), sig_script, sequence, amount, private_key)
+        self.tx_in.append(Input((tx_hash, output_number), sig_script, sequence, amount, private_key))
         self.recalculate_txid()
 
     def add_P2SH_output(self, amount, p2sh_address):
