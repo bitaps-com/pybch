@@ -381,6 +381,22 @@ class Transaction():
         self.witness[input_index] = Witness([signature, pubkey])
         self.recalculate_txid()
 
+    def sign_P2PKH_input(self, sighash_type, input_index, compressed, private_key = None):
+        if private_key is not None:
+            self.tx_in[input_index].private_key = private_key
+        else:
+            private_key = self.tx_in[input_index].private_key
+        pubkey = priv2pub(private_key, compressed)
+        pubkey_hash160 = hash160(pubkey)
+        scriptCode = OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
+                     pubkey_hash160 + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]
+        sighash = self.sighash(sighash_type, input_index, scriptCode)
+        signature = sign_message_der(sighash, private_key) + sighash_type.to_bytes(1, 'little')
+        sig_script = len(signature).to_bytes(1, 'little') + signature + \
+                     len(pubkey).to_bytes(1, 'little') + pubkey
+        self.tx_in[input_index].sig_script = Script(sig_script)
+        self.recalculate_txid()
+
     def sighash(self, sighash_type, input_index, scriptCode, hex = False):
         if type(scriptCode) == str:
          scriptCode = unhexlify(scriptCode)
