@@ -303,6 +303,7 @@ class Transaction():
                   amount = None,
                   private_key = None):
         self.tx_in.append(Input((tx_hash, output_number), sig_script, sequence, amount, private_key))
+        self.tx_in_count += 1
         self.recalculate_txid()
 
     def add_P2SH_output(self, amount, p2sh_address):
@@ -312,6 +313,7 @@ class Transaction():
             raise Exception("Invalid output hash160")
         self.tx_out.append(Output(amount,
                            OPCODE["OP_HASH160"] + b'\x14' + p2sh_address + OPCODE["OP_EQUAL"]))
+        self.tx_out_count += 1
         self.recalculate_txid()
 
     def add_P2PKH_output(self, amount, p2pkh_address):
@@ -322,6 +324,7 @@ class Transaction():
         self.tx_out.append(Output(amount,
                            OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
                            p2pkh_address + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]))
+        self.tx_out_count += 1
         self.recalculate_txid()
 
 
@@ -378,7 +381,7 @@ class Transaction():
     def sighash(self, sighash_type, input_index, scriptCode, hex = False):
         if type(scriptCode) == str:
          scriptCode = unhexlify(scriptCode)
-        if self.tx_in_count-1 < input_index:
+        if len(self.tx_in) - 1 < input_index:
             raise Exception('Input not exist')
         preimage = bytearray()
         if ((sighash_type&31) == SIGHASH_SINGLE) and (input_index>(len(self.tx_out)-1)):
@@ -410,7 +413,7 @@ class Transaction():
     def sighash_segwit(self, sighash_type, input_index, scriptCode, amount, hex = False):
         if type(scriptCode) == str:
             scriptCode = unhexlify(scriptCode)
-        if self.tx_in_count-1 < input_index:
+        if len(self.tx_in)-1 < input_index:
             raise Exception('Input not exist')
         preimage = bytearray()
         # 1. nVersion of the transaction (4-byte little endian)
