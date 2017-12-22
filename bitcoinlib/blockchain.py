@@ -250,7 +250,7 @@ class Witness:
 class Transaction():
     def __init__(self, version = 1, tx_in = [], tx_out = [] , lock_time = 0,
                  hash=None, size = 0, timestamp = None,
-                 marker = None, flag = None, witness = None,
+                 marker = None, flag = None, witness = [],
                  whash = None, vsize = None):
         self.hash = hash
         self.whash = whash
@@ -303,6 +303,7 @@ class Transaction():
                   amount = None,
                   private_key = None):
         self.tx_in.append(Input((tx_hash, output_number), sig_script, sequence, amount, private_key))
+        self.witness.append(Witness.deserialize(b"\x00"))
         self.tx_in_count += 1
         self.recalculate_txid()
 
