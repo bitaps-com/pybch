@@ -20,6 +20,23 @@ ECDSA_SEC256K1_ORDER  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E
 HDW_PURPOSE           = 0x8000002C # bip 43
 HDW_BITCOIN           = 0x80000000 # bitcoin
 
+# /** All flags' lower 8 bits indicate what they're for. Do not use directly. */
+SECP256K1_FLAGS_TYPE_MASK = ((1 << 8) - 1)
+SECP256K1_FLAGS_TYPE_CONTEXT = (1 << 0)
+SECP256K1_FLAGS_TYPE_COMPRESSION = (1 << 1)
+# /** The higher bits contain the actual data. Do not use directly. */
+SECP256K1_FLAGS_BIT_CONTEXT_VERIFY = (1 << 8)
+SECP256K1_FLAGS_BIT_CONTEXT_SIGN = (1 << 9)
+SECP256K1_FLAGS_BIT_COMPRESSION = (1 << 8)
+
+# /** Flags to pass to secp256k1_context_create. */
+SECP256K1_CONTEXT_VERIFY = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_VERIFY)
+SECP256K1_CONTEXT_SIGN = (SECP256K1_FLAGS_TYPE_CONTEXT | SECP256K1_FLAGS_BIT_CONTEXT_SIGN)
+SECP256K1_CONTEXT_NONE = (SECP256K1_FLAGS_TYPE_CONTEXT)
+
+SECP256K1_FLAGS_BIT_COMPRESSION = (1 << 8)
+SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION)
+SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
 
 SCRIPT_TYPES = { "P2PKH":        0,
                  "P2SH" :        1,
@@ -29,8 +46,8 @@ SCRIPT_TYPES = { "P2PKH":        0,
                  "NON_STANDART": 5,
                  "SP2PKH": 6
                 }
-
-ECDSA_VERIFY_CONTEXT = ECDSA.secp256k1_context_create(3)
+###### FIX
+ECDSA_VERIFY_CONTEXT = ECDSA.secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
 
 b58_digits = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
@@ -123,19 +140,19 @@ def create_priv():
     """
     q = time.time()
     rnd = random.SystemRandom()
-    a = rnd.randint(0,MAX_INT_PRIVATE_KEY)
-    i = int((time.time()%0.01)*100000)
-    h = a.to_bytes(32,byteorder="big")
+    a = rnd.randint(0, MAX_INT_PRIVATE_KEY)
+    i = int((time.time() % 0.01) * 100000)
+    h = a.to_bytes(32, byteorder = "big")
     while True:
         h = hashlib.sha256(h).digest()
-        if i>1: i -= 1
+        if i > 1: i -= 1
         else:
-            if int.from_bytes(h,byteorder="big")<MAX_INT_PRIVATE_KEY:
+            if int.from_bytes(h, byteorder = "big") < MAX_INT_PRIVATE_KEY:
                 break
     return h
 
 def priv_from_int(k):
-    return int.to_bytes(k,byteorder="big",length=32)
+    return int.to_bytes(k, byteorder = "big", length=32)
 
 
 def priv2WIF(h, compressed = False, testnet = False):
@@ -163,13 +180,15 @@ def is_WIF_valid(wif):
     return True
 
 
+
 def priv2pub(private_key, compressed = True):
     pub = create_string_buffer(64)
-    ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT,pub,private_key)
+    ECDSA.secp256k1_ec_pubkey_create(ECDSA_VERIFY_CONTEXT, pub, c_char_p(private_key))
     pp = create_string_buffer(65)
     s = c_int(65)
-    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT,pp,pointer(s),pub,int(compressed))
+    ECDSA.secp256k1_ec_pubkey_serialize(ECDSA_VERIFY_CONTEXT, pp, pointer(s), pub, compressed)
     return pp.raw[:s.value]
+
 
 
 def address2hash160(address):
@@ -584,12 +603,15 @@ def is_valid_signature_encoding(sig):
 def check_sig(sig, pubKey, sigHash, ECDSA_CONTEXT):
     sgn = create_string_buffer(65)
     pk = create_string_buffer(64)
+
     if not ECDSA.secp256k1_ecdsa_signature_parse_der(ECDSA_CONTEXT, sgn, sig, len(sig)):
         return 0
         raise Exception('signature parse error')
+
     if not ECDSA.secp256k1_ec_pubkey_parse(ECDSA_CONTEXT, pk, pubKey, len(pubKey)):
         return 0
         raise Exception('pubkey parse error')
+
     result = ECDSA.secp256k1_ecdsa_verify(ECDSA_CONTEXT, sigHash, sgn, pk)
     return result
 
@@ -706,6 +728,7 @@ def is_pmt_code_valid(wif):
 
 def sign_message(msg, private_key):
     sign = create_string_buffer(64)
+
     p= ECDSA.secp256k1_ecdsa_sign(ECDSA_VERIFY_CONTEXT, msg, sign, private_key ,None,None)
     return sign.raw
 
@@ -713,6 +736,7 @@ def sign_message_der(msg, private_key):
     sign = sign_message(msg,private_key)
     signder = create_string_buffer(255)
     s = c_int(255)
+
     ECDSA.secp256k1_ecdsa_signature_serialize_der(ECDSA_VERIFY_CONTEXT,signder,pointer(s),sign)
     return signder.raw[:s.value]
 
