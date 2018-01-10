@@ -1,7 +1,7 @@
 import unittest
-from bitcoinlib import tools
+from pybch import tools
 from binascii import unhexlify
-from bitcoinlib import address2hash160
+from pybch import address2hash160
 
 
 class HashFunctionsTests(unittest.TestCase):
