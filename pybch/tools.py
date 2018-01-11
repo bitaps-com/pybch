@@ -311,7 +311,7 @@ def hash1602address(hash160, testnet = False, p2sh = False, legacy = False):
         hash160 = rebase_8_to_5(version + hash160)
         checksum = bech32_polymod(stripped_prefix + hash160+b"\x00" * 8).to_bytes(5,"big")
         checksum = rebase_8_to_5(checksum)
-        return "%s:%s" % (prefix, rebase_5_to_32(hash160 + checksum))
+        return "%s:%s" % (prefix, rebase_5_to_32(hash160 + checksum).decode())
 
 
 def address2hash160(address, hex = False):
