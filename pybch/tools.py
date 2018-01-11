@@ -343,7 +343,7 @@ def address_type(address):
 
 def pub2address(pubkey, testnet = False, legacy = False, p2sh = False):
     h = hash160(pubkey)
-    return address2hash160(h, testnet = testnet, legacy = legacy, p2sh = p2sh)
+    return hash1602address(h, testnet = testnet, legacy = legacy, p2sh = p2sh)
 
 
 def is_address_valid(addr, testnet = False):
