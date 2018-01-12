@@ -154,7 +154,7 @@ class Input:
     def __init__(self, outpoint, script, sequence, amount = None, private_key = None):
         if type(outpoint[0]) == str:
             outpoint = (unhexlify(outpoint[0])[::-1], outpoint[1])
-        if type(outpoint[0]) == str:
+        if type(private_key) == str:
             private_key = WIF2priv(private_key)
         self.outpoint = outpoint
         self.sequence = sequence
@@ -302,6 +302,7 @@ class Transaction():
             return result
 
     def sign_P2PKH_input(self, sighash_type, input_index, amount = None, compressed = True, private_key = None):
+        sighash_type = sighash_type | SIGHASH_FORKID
         if private_key is not None:
             self.tx_in[input_index].private_key = private_key
         else:
@@ -322,7 +323,6 @@ class Transaction():
         self.recalculate_txid()
 
     def sighash(self, sighash_type, input_index, scriptCode, amount, hex = False):
-        sighash_type = sighash_type | SIGHASH_FORKID
         if type(scriptCode) == str:
          scriptCode = unhexlify(scriptCode)
         if len(self.tx_in) - 1 < input_index:

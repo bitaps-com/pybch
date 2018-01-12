@@ -4,3 +4,4 @@ from .address_functions import *
 from .transaction_deserialize import *
 # from .sighash import *#
 from .ecdsa import *
+from .sign_tx import *

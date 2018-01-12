@@ -231,7 +231,7 @@ def priv_from_int(k):
     return int.to_bytes(k, byteorder = "big", length=32)
 
 
-def priv2WIF(h, compressed = False, testnet = False):
+def priv2WIF(h, compressed = True, testnet = False):
     #uncompressed: 0x80 + [32-byte secret] + [4 bytes of Hash() of previous 33 bytes], base58 encoded
     #compressed: 0x80 + [32-byte secret] + 0x01 + [4 bytes of Hash() previous 34 bytes], base58 encoded
     prefix = b'\x80'
@@ -315,7 +315,7 @@ def hash1602address(hash160, testnet = False, p2sh = False, legacy = False):
 
 
 def address2hash160(address, hex = False):
-    if address[0] in ('1','3', '2' 'm', 'n'):
+    if address[0] in ('1','3', '2', 'm', 'n'):
         h = decode_base58(address)[1:-4]
     elif address.find(":") != -1 :
         address = address.split(":")[1]
