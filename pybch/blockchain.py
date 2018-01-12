@@ -301,11 +301,15 @@ class Transaction():
         else:
             return result
 
-    def sign_P2PKH_input(self, sighash_type, input_index, amount, compressed = True, private_key = None):
+    def sign_P2PKH_input(self, sighash_type, input_index, amount = None, compressed = True, private_key = None):
         if private_key is not None:
             self.tx_in[input_index].private_key = private_key
         else:
             private_key = self.tx_in[input_index].private_key
+        if amount is not None:
+            self.tx_in[input_index].amount = amount
+        else:
+            amount = self.tx_in[input_index].amount
         pubkey = priv2pub(private_key, compressed)
         pubkey_hash160 = hash160(pubkey)
         scriptCode = OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
