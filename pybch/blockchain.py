@@ -265,7 +265,7 @@ class Transaction():
 
     def add_P2PKH_output(self, amount, p2pkh_address):
         if type(p2pkh_address)==str:
-            p2pkh_address = decode_base58(p2pkh_address)[1:-4]
+            p2pkh_address = address2hash160(p2pkh_address)
         if len(p2pkh_address) != 20:
             raise p2pkh_address("Invalid output hash160")
         self.tx_out.append(Output(amount,
@@ -403,8 +403,6 @@ class Transaction():
     @classmethod
     def deserialize(cls, stream):
         stream = get_stream(stream)
-        raw_tx = bytearray()
-        raw_wtx = bytearray()
         start = stream.tell()
         version = int.from_bytes(stream.read(4), 'little')
         tx_in = read_var_list(stream, Input)
