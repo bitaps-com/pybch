@@ -316,9 +316,11 @@ class Transaction():
         scriptCode = OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
                      pubkey_hash160 + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]
         sighash = self.sighash(sighash_type, input_index, scriptCode, amount)
+        print(hexlify(sighash))
         signature = sign_message(sighash, private_key) + sighash_type.to_bytes(1, 'little')
         sig_script = len(signature).to_bytes(1, 'little') + signature + \
                      len(pubkey).to_bytes(1, 'little') + pubkey
+        print("input_index ", input_index)
         self.tx_in[input_index].sig_script = Script(sig_script)
         self.recalculate_txid()
 
@@ -332,7 +334,7 @@ class Transaction():
         hashSequence = bytearray()
         hashOutputs = bytearray()
 
-
+        print("sighash" , sighash_type)
         if ((sighash_type & 31) != SIGHASH_ANYONECANPAY):
             for i in self.tx_in:
                 hashPrevouts += i.outpoint[0] + int(i.outpoint[1]).to_bytes(4, 'little')
@@ -359,7 +361,9 @@ class Transaction():
             hashOutputs = double_sha256(i.value.to_bytes(8, 'little') + to_var_int(len(i.pk_script.raw)) + i.pk_script.raw)
         else:
             hashOutputs = b'\x00' * 32
-
+        print("hashPrevouts ", hexlify(hashPrevouts))
+        print("hashSequence ", hexlify(hashSequence))
+        print("hashOuts ", hexlify(hashOutputs))
         preimage = int(self.version).to_bytes(4, 'little')
         preimage += hashPrevouts
         preimage += hashSequence
@@ -371,6 +375,7 @@ class Transaction():
         preimage += hashOutputs
         preimage += self.lock_time.to_bytes(4, 'little')
         preimage += int(sighash_type).to_bytes(4, 'little')
+        print("preimage ",hexlify(preimage))
         return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()
 
 

@@ -447,7 +447,7 @@ def sign_message(msg, private_key, hex = False):
         if type(private_key) == bytearray:
             private_key = bytes(private_key)
         elif type(private_key) == str:
-            private_key = unhexlify(private_key)
+            private_key = WIF2priv(private_key)
         else:
             raise TypeError("private key must be a bytes or hex encoded string")
     raw_sig = ffi.new('secp256k1_ecdsa_signature *')
