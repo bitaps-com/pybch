@@ -410,7 +410,7 @@ class Transaction():
         tx_in = read_var_list(stream, Input)
         tx_out = read_var_list(stream, Output)
         lock_time = int.from_bytes(stream.read(4), 'little')
-        size = stream.tell() - start
+        size = stream.tell()
         stream.seek(start)
         data = stream.read(size)
         tx_id = double_sha256(data)
