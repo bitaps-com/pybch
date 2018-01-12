@@ -364,7 +364,7 @@ class Transaction():
         preimage += hashPrevouts
         preimage += hashSequence
         preimage += self.tx_in[input_index].outpoint[0]
-        preimage += int(self.tx_in[input_index].outpoint[0]).to_bytes(4, 'little')
+        preimage += int(self.tx_in[input_index].outpoint[1]).to_bytes(4, 'little')
         preimage += to_var_int(len(scriptCode)) + scriptCode
         preimage += int(amount).to_bytes(8, 'little')
         preimage += int(self.tx_in[input_index].sequence).to_bytes(4, 'little')
