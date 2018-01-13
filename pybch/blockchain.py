@@ -333,15 +333,12 @@ class Transaction():
         hashPrevouts = bytearray()
         hashSequence = bytearray()
         hashOutputs = bytearray()
-
-        print("sighash" , sighash_type)
         if ((sighash_type & 31) != SIGHASH_ANYONECANPAY):
             for i in self.tx_in:
                 hashPrevouts += i.outpoint[0] + int(i.outpoint[1]).to_bytes(4, 'little')
             hashPrevouts = double_sha256(hashPrevouts)
         else:
             hashPrevouts = b'\x00'*32
-
         if ((sighash_type & 31) != SIGHASH_ANYONECANPAY) and \
            ((sighash_type & 31) != SIGHASH_SINGLE) and \
            ((sighash_type & 31) != SIGHASH_NONE):
@@ -355,15 +352,12 @@ class Transaction():
            ((sighash_type & 31) != SIGHASH_NONE):
             for i in self.tx_out:
                 hashOutputs += i.value.to_bytes(8, 'little') + to_var_int(len(i.pk_script.raw)) + i.pk_script.raw
-                hashOutputs = double_sha256(hashOutputs)
+            hashOutputs = double_sha256(hashOutputs)
         elif ((sighash_type & 31) != SIGHASH_SINGLE) and input_index< len(self.tx_out):
             i = self.tx_out[input_index]
             hashOutputs = double_sha256(i.value.to_bytes(8, 'little') + to_var_int(len(i.pk_script.raw)) + i.pk_script.raw)
         else:
             hashOutputs = b'\x00' * 32
-        print("hashPrevouts ", hexlify(hashPrevouts))
-        print("hashSequence ", hexlify(hashSequence))
-        print("hashOuts ", hexlify(hashOutputs))
         preimage = int(self.version).to_bytes(4, 'little')
         preimage += hashPrevouts
         preimage += hashSequence
@@ -375,7 +369,6 @@ class Transaction():
         preimage += hashOutputs
         preimage += self.lock_time.to_bytes(4, 'little')
         preimage += int(sighash_type).to_bytes(4, 'little')
-        print("preimage ",hexlify(preimage))
         return double_sha256(preimage) if not hex else hexlify(double_sha256(preimage)).decode()
 
 

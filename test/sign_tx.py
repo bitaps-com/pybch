@@ -23,14 +23,14 @@ class SighashTests(unittest.TestCase):
 
     def test_sign_multi(self):
         input_list = [{
-                       'input_tx_hash': "51956d107442bff53a3f5a7e6bfd86548676911144489ecda67f1b1ff2496ad5",
+                       'input_tx_hash': "67b2b187cc2ff545268acc795e3b2388bd5e474e8cb99f9103d2d01853eec3fb",
                        # 81850bd17026b498720dbc9c9b655512f7c35b882aca6f846e8203c9864051be
                        'receiver': '1E2K64b281k5REC1QF66KRUsC5UqmqZamc',
                        'input_out': 0,
-                       's': unhexlify("76a9148ed9264f34b3677aba20ba18a50ba4a2fb119dea88ac"),
-                       'private_key': "KwJ2eyPgQJ4vtqffTBZXXF5anqqBJxJXkYZD4DmshhF8LKWnx8AK",
+                       's': unhexlify("76a9148f962de5b7650f68586d81a6d442a3061d6bdf7088ac"),
+                       'private_key': "L558Cwt5EpBp8agKgKSXjS2xdM6NBXaWswMiHDebyjPeeqBgPtfs",
                        # KwL4NhhncCQuN94jEs7GxW1uhA8JWQANZ4AHGuif2wB5zwsmNVLM
-                       'amount': 100000},]
+                       'amount': 1300000000},]
                       # {
                       #  'input_tx_hash': b'\xcd\x91\xdb]?k\xfb\x01>P{@|\xf39\xd8\x97\xcc<\xce\ro\xed\xfe\xf1\xddFi\xfcNi`',
                       #  # 60694efc6946ddf1feed6f0dce3ccc97d839f37c407b503e01fb6b3f5ddb91cd
@@ -45,7 +45,8 @@ class SighashTests(unittest.TestCase):
         for i in input_list:
             tx.add_input(i["input_tx_hash"], i["input_out"], sig_script = i["s"],amount=i["amount"], private_key=i["private_key"])
             print(tx.tx_in)
-        tx.add_P2PKH_output(99000, "1E2K64b281k5REC1QF66KRUsC5UqmqZamc")
+        tx.add_P2SH_output(17770, unhexlify("62b364276141c7b01132933427cce9e260b0c4b7"))
+        tx.add_P2PKH_output(1299980000, unhexlify("aab6d6e16872e5354dd48343a7d3893a1215c856"))
         # print("out >>", tx.tx_out[0].pk_script.raw)
         # print(address2hash160("bchtest:qz4td4hpdpew2d2d6jp58f7n3yapy9wg2c3umcuqn5"))
         print("beofre sign ", tx.serialize(True))
