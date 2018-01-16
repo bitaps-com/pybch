@@ -204,7 +204,7 @@ class Output:
 
 
 class Transaction():
-    def __init__(self, version, tx_in, tx_out, lock_time,
+    def __init__(self, version = 1, tx_in= [], tx_out = [], lock_time = 0,
                  hash=None, size = 0, timestamp = None):
         self.hash = hash
         self.valid = True
