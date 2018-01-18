@@ -316,11 +316,9 @@ class Transaction():
         scriptCode = OPCODE["OP_DUP"] + OPCODE["OP_HASH160"] + b'\x14' + \
                      pubkey_hash160 + OPCODE["OP_EQUALVERIFY"] + OPCODE["OP_CHECKSIG"]
         sighash = self.sighash(sighash_type, input_index, scriptCode, amount)
-        print(hexlify(sighash))
         signature = sign_message(sighash, private_key) + sighash_type.to_bytes(1, 'little')
         sig_script = len(signature).to_bytes(1, 'little') + signature + \
                      len(pubkey).to_bytes(1, 'little') + pubkey
-        print("input_index ", input_index)
         self.tx_in[input_index].sig_script = Script(sig_script)
         self.recalculate_txid()
 
