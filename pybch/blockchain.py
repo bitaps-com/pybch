@@ -255,7 +255,7 @@ class Transaction():
 
     def add_P2SH_output(self, amount, p2sh_address):
         if type(p2sh_address)==str:
-            p2sh_address = decode_base58(p2sh_address)[1:-4]
+            p2sh_address = address2hash160(p2sh_address)[1:-4]
         if len(p2sh_address) != 20:
             raise Exception("Invalid output hash160")
         self.tx_out.append(Output(amount,
